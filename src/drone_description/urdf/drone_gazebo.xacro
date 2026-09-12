@@ -1,0 +1,381 @@
+<?xml version="1.0"?>
+<!--
+  drone_gazebo.xacro
+  ──────────────────────────────────────────────────────────────────────────────
+  Gazebo / Ignition plugin definitions for the custom drone (REV02 airframe).
+  Included by drone.urdf.xacro via:
+      <xacro:include filename="$(find drone_description)/urdf/drone_gazebo.xacro"/>
+
+  CHANGED vs the previous revision of this file:
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │ 1. Joint/link names remapped to match the REV02 SolidWorks export       │
+  │    (drone.urdf.xacro), which uses prop_1..prop_4 / rotor_1..rotor_4,    │
+  │    not the old rotor_0_joint..rotor_3_joint / rotor_0..rotor_3 scheme.  │
+  │    Mapping was done by matching joint origin xyz to physical position   │
+  │    (front-right / front-left / back-left / back-right) — NOT verified   │
+  │    against real ESC wiring or prop pitch. Confirm CW/CCW against the    │
+  │    physical airframe before trusting this in SITL:                      │
+  │       prop_2 (front-right) ← was rotor_0, CCW                          │
+  │       prop_4 (back-left)   ← was rotor_1, CCW                          │
+  │       prop_1 (front-left)  ← was rotor_2, CW                           │
+  │       prop_3 (back-right)  ← was rotor_3, CW                           │
+  │                                                                          │
+  │ 2. Duplicate imu_link/imu_joint removed. drone.urdf.xacro (REV02)       │
+  │    already defines imu_link with real SolidWorks mass/inertia at        │
+  │    origin (0.027618, 0, 0.09424) — this file only attaches sensor       │
+  │    plugins to that existing link now, it does not redefine it.          │
+  │                                                                          │
+  │ 3. motorConstant / momentConstant / rotorDragCoefficient are STILL      │
+  │    the x500 SDF placeholders — NOT yet recalibrated for the MN4110      │
+  │    400KV / 15x5" / 6S airframe. See TODO markers below. Real hardware   │
+  │    gives MPC_THR_HOVER=0.4 and CA_ROTOR_KM=0.05 as calibration          │
+  │    anchors, but back-solving motorConstant also needs max motor RPM,    │
+  │    which wasn't in the params dump — do this together before trusting   │
+  │    thrust response in SITL.                                             │
+  │                                                                          │
+  │ 4. MulticopterVelocityControl gains are STILL tuned for a ~1.88 kg      │
+  │    airframe (see comment below) — real mass is closer to 3.0-3.1 kg.    │
+  │    Not yet retuned. TODO marker left in place.                          │
+  │                                                                          │
+  │ 5. All plugin filenames use the Ignition (gz-sim) API only               │
+  │    (ignition-gazebo-*-system) — unchanged from previous revision.       │
+  └─────────────────────────────────────────────────────────────────────────┘
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- ══════════════════════════════════════════════════════════════
+       JOINT STATE PUBLISHER
+       Publishes joint positions for all 4 rotor joints.
+       joint names must match drone.urdf.xacro exactly.
+       ══════════════════════════════════════════════════════════════ -->
+  <gazebo>
+    <plugin
+      filename="ignition-gazebo-joint-state-publisher-system"
+      name="ignition::gazebo::systems::JointStatePublisher">
+      <joint_name>prop_1</joint_name>
+      <joint_name>prop_2</joint_name>
+      <joint_name>prop_3</joint_name>
+      <joint_name>prop_4</joint_name>
+    </plugin>
+  </gazebo>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       MOTOR MODELS  (one plugin per rotor — Ignition API)
+       Physics constants ported from x500 model.sdf verbatim —
+       TODO: recalibrate against real MN4110 400KV / 15x5" / 6S specs
+       and MPC_THR_HOVER=0.4 from the real params dump.
+
+       Layout (matched to REV02 drone.urdf.xacro joint origins):
+         prop_2 (rotor_2) → front-right  (+x, -y)  CCW  [was rotor_0]
+         prop_4 (rotor_4) → back-left    (-x, +y)  CCW  [was rotor_1]
+         prop_1 (rotor_1) → front-left   (+x, +y)  CW   [was rotor_2]
+         prop_3 (rotor_3) → back-right   (-x, -y)  CW   [was rotor_3]
+       ══════════════════════════════════════════════════════════════ -->
+
+  <!-- Motor 0 : CCW — front-right (prop_2 / rotor_2) -->
+  <gazebo>
+    <plugin
+      filename="ignition-gazebo-multicopter-motor-model-system"
+      name="ignition::gazebo::systems::MulticopterMotorModel">
+      <robotNamespace>drone</robotNamespace>
+      <jointName>prop_2</jointName>
+      <linkName>rotor_2</linkName>
+      <turningDirection>ccw</turningDirection>
+      <timeConstantUp>0.0125</timeConstantUp>
+      <timeConstantDown>0.025</timeConstantDown>
+      <maxRotVelocity>1000.0</maxRotVelocity>
+      <!-- TODO: recalibrate motorConstant/momentConstant/rotorDragCoefficient -->
+      <motorConstant>8.54858e-06</motorConstant>
+      <momentConstant>0.016</momentConstant>
+      <commandSubTopic>command/motor_speed</commandSubTopic>
+      <motorNumber>0</motorNumber>
+      <rotorDragCoefficient>8.06428e-05</rotorDragCoefficient>
+      <rollingMomentCoefficient>1e-06</rollingMomentCoefficient>
+      <rotorVelocitySlowdownSim>10</rotorVelocitySlowdownSim>
+      <motorType>velocity</motorType>
+    </plugin>
+  </gazebo>
+
+  <!-- Motor 1 : CCW — back-left (prop_4 / rotor_4) -->
+  <gazebo>
+    <plugin
+      filename="ignition-gazebo-multicopter-motor-model-system"
+      name="ignition::gazebo::systems::MulticopterMotorModel">
+      <robotNamespace>drone</robotNamespace>
+      <jointName>prop_4</jointName>
+      <linkName>rotor_4</linkName>
+      <turningDirection>cw</turningDirection>
+      <timeConstantUp>0.0125</timeConstantUp>
+      <timeConstantDown>0.025</timeConstantDown>
+      <maxRotVelocity>1000.0</maxRotVelocity>
+      <!-- TODO: recalibrate motorConstant/momentConstant/rotorDragCoefficient -->
+      <motorConstant>8.54858e-06</motorConstant>
+      <momentConstant>0.016</momentConstant>
+      <commandSubTopic>command/motor_speed</commandSubTopic>
+      <motorNumber>1</motorNumber>
+      <rotorDragCoefficient>8.06428e-05</rotorDragCoefficient>
+      <rollingMomentCoefficient>1e-06</rollingMomentCoefficient>
+      <rotorVelocitySlowdownSim>10</rotorVelocitySlowdownSim>
+      <motorType>velocity</motorType>
+    </plugin>
+  </gazebo>
+
+  <!-- Motor 2 : CW — front-left (prop_1 / rotor_1) -->
+  <gazebo>
+    <plugin
+      filename="ignition-gazebo-multicopter-motor-model-system"
+      name="ignition::gazebo::systems::MulticopterMotorModel">
+      <robotNamespace>drone</robotNamespace>
+      <jointName>prop_1</jointName>
+      <linkName>rotor_1</linkName>
+      <turningDirection>ccw</turningDirection>
+      <timeConstantUp>0.0125</timeConstantUp>
+      <timeConstantDown>0.025</timeConstantDown>
+      <maxRotVelocity>1000.0</maxRotVelocity>
+      <!-- TODO: recalibrate motorConstant/momentConstant/rotorDragCoefficient -->
+      <motorConstant>8.54858e-06</motorConstant>
+      <momentConstant>0.016</momentConstant>
+      <commandSubTopic>command/motor_speed</commandSubTopic>
+      <motorNumber>2</motorNumber>
+      <rotorDragCoefficient>8.06428e-05</rotorDragCoefficient>
+      <rollingMomentCoefficient>1e-06</rollingMomentCoefficient>
+      <rotorVelocitySlowdownSim>10</rotorVelocitySlowdownSim>
+      <motorType>velocity</motorType>
+    </plugin>
+  </gazebo>
+
+  <!-- Motor 3 : CW — back-right (prop_3 / rotor_3) -->
+  <gazebo>
+    <plugin
+      filename="ignition-gazebo-multicopter-motor-model-system"
+      name="ignition::gazebo::systems::MulticopterMotorModel">
+      <robotNamespace>drone</robotNamespace>
+      <jointName>prop_3</jointName>
+      <linkName>rotor_3</linkName>
+      <turningDirection>cw</turningDirection>
+      <timeConstantUp>0.0125</timeConstantUp>
+      <timeConstantDown>0.025</timeConstantDown>
+      <maxRotVelocity>1000.0</maxRotVelocity>
+      <!-- TODO: recalibrate motorConstant/momentConstant/rotorDragCoefficient -->
+      <motorConstant>8.54858e-06</motorConstant>
+      <momentConstant>0.016</momentConstant>
+      <commandSubTopic>command/motor_speed</commandSubTopic>
+      <motorNumber>3</motorNumber>
+      <rotorDragCoefficient>8.06428e-05</rotorDragCoefficient>
+      <rollingMomentCoefficient>1e-06</rollingMomentCoefficient>
+      <rotorVelocitySlowdownSim>10</rotorVelocitySlowdownSim>
+      <motorType>velocity</motorType>
+    </plugin>
+  </gazebo>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       MULTICOPTER VELOCITY CONTROLLER
+       Accepts geometry_msgs/Twist on /drone/cmd_vel via bridge.
+       Rotor configuration must match motor layout above.
+       direction:  1 = CCW,  -1 = CW
+       TODO: gains below are still tuned for a ~1.88 kg airframe.
+       Real REV02 mass is ~3.0-3.1 kg (base_link 2.9001 kg + 4 rotors +
+       sensor links) — velocityGain / attitudeGain / angularRateGain /
+       maximumLinearAcceleration need retuning against the real mass.
+       ══════════════════════════════════════════════════════════════ -->
+  <gazebo>
+    <plugin
+      filename="ignition-gazebo-multicopter-control-system"
+      name="ignition::gazebo::systems::MulticopterVelocityControl">
+      <robotNamespace>drone</robotNamespace>
+      <commandSubTopic>cmd_vel</commandSubTopic>
+      <enableSubTopic>enable</enableSubTopic>
+      <comLinkName>base_link</comLinkName>
+      <!-- TODO: retune for real ~3.0-3.1 kg mass -->
+      <velocityGain>2.0 2.0 6.0</velocityGain>
+      <attitudeGain>1.5 1.5 0.8</attitudeGain>
+      <angularRateGain>0.2 0.2 0.05</angularRateGain>
+      <maximumLinearAcceleration>4 4 4</maximumLinearAcceleration>
+      <rotorConfiguration>
+        <!-- front-right, CCW → direction 1 -->
+        <rotor>
+          <jointName>prop_2</jointName>
+          <forceConstant>8.54858e-06</forceConstant>
+          <momentConstant>0.016</momentConstant>
+          <direction>1</direction>
+        </rotor>
+        <!-- back-left, CCW → direction 1 -->
+        <rotor>
+          <jointName>prop_4</jointName>
+          <forceConstant>8.54858e-06</forceConstant>
+          <momentConstant>0.016</momentConstant>
+          <direction>-1</direction>
+        </rotor>
+        <!-- front-left, CW → direction -1 -->
+        <rotor>
+          <jointName>prop_1</jointName>
+          <forceConstant>8.54858e-06</forceConstant>
+          <momentConstant>0.016</momentConstant>
+          <direction>1</direction>
+        </rotor>
+        <!-- back-right, CW → direction -1 -->
+        <rotor>
+          <jointName>prop_3</jointName>
+          <forceConstant>8.54858e-06</forceConstant>
+          <momentConstant>0.016</momentConstant>
+          <direction>-1</direction>
+        </rotor>
+      </rotorConfiguration>
+    </plugin>
+  </gazebo>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       IMU SENSOR
+       Attaches to the imu_link already defined in drone.urdf.xacro
+       (REV02 SolidWorks export) — not redefined here.
+       Topic: /drone/imu  (matched in gazebo_bridge.yaml)
+       ══════════════════════════════════════════════════════════════ -->
+  <gazebo reference="imu_link">
+    <sensor name="imu_sensor" type="imu">
+      <always_on>true</always_on>
+      <update_rate>250</update_rate>
+      <topic>/drone/imu</topic>
+      <imu>
+        <angular_velocity>
+          <x><noise type="gaussian"><mean>0</mean><stddev>2e-4</stddev></noise></x>
+          <y><noise type="gaussian"><mean>0</mean><stddev>2e-4</stddev></noise></y>
+          <z><noise type="gaussian"><mean>0</mean><stddev>2e-4</stddev></noise></z>
+        </angular_velocity>
+        <linear_acceleration>
+          <x><noise type="gaussian"><mean>0</mean><stddev>1.7e-2</stddev></noise></x>
+          <y><noise type="gaussian"><mean>0</mean><stddev>1.7e-2</stddev></noise></y>
+          <z><noise type="gaussian"><mean>0</mean><stddev>1.7e-2</stddev></noise></z>
+        </linear_acceleration>
+      </imu>
+      <plugin filename="ignition-gazebo-imu-system"
+              name="ignition::gazebo::systems::Imu"/>
+    </sensor>
+  </gazebo>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       GPS / NavSat SENSOR
+       Offset 5 cm above base_link to simulate antenna position.
+       Topic: /drone/gps  (matched in gazebo_bridge.yaml)
+       Note: this is for the outdoor/GPS test-flight profile
+       (EKF2_GPS_CTRL=7 in the real params dump) — the indoor
+       competition profile keeps EKF2_GPS_CTRL=0 and ignores this.
+       ══════════════════════════════════════════════════════════════ -->
+  <link name="gps_link">
+    <inertial>
+      <mass value="0.001"/>
+      <inertia ixx="1e-05" ixy="0" ixz="0"
+               iyy="1e-05" iyz="0" izz="1e-05"/>
+    </inertial>
+  </link>
+
+  <joint name="gps_joint" type="fixed">
+    <parent link="base_link"/>
+    <child  link="gps_link"/>
+    <origin xyz="0 0 0.05" rpy="0 0 0"/>
+  </joint>
+
+  <gazebo reference="gps_link">
+    <sensor name="gps_sensor" type="navsat">
+      <always_on>true</always_on>
+      <update_rate>10</update_rate>
+      <topic>/drone/gps</topic>
+      <plugin filename="ignition-gazebo-navsat-system"
+              name="ignition::gazebo::systems::NavSat"/>
+    </sensor>
+  </gazebo>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       MAGNETOMETER
+       Topic: /drone/magnetometer  (matched in gazebo_bridge.yaml)
+       ══════════════════════════════════════════════════════════════ -->
+  <gazebo reference="imu_link">
+    <sensor name="magnetometer" type="magnetometer">
+      <always_on>true</always_on>
+      <update_rate>100</update_rate>
+      <topic>/drone/magnetometer</topic>
+      <plugin filename="ignition-gazebo-magnetometer-system"
+              name="ignition::gazebo::systems::Magnetometer"/>
+    </sensor>
+  </gazebo>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       ALTIMETER (barometric)
+       Topic: /drone/altimeter  (matched in gazebo_bridge.yaml)
+       ══════════════════════════════════════════════════════════════ -->
+  <gazebo reference="imu_link">
+    <sensor name="altimeter_sensor" type="altimeter">
+      <always_on>true</always_on>
+      <update_rate>50</update_rate>
+      <topic>/drone/altimeter</topic>
+      <altimeter>
+        <vertical_position>
+          <noise type="gaussian"><mean>0.0</mean><stddev>0.01</stddev></noise>
+        </vertical_position>
+        <vertical_velocity>
+          <noise type="gaussian"><mean>0.0</mean><stddev>0.01</stddev></noise>
+        </vertical_velocity>
+      </altimeter>
+      <plugin filename="ignition-gazebo-altimeter-system"
+              name="ignition::gazebo::systems::Altimeter"/>
+    </sensor>
+  </gazebo>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       ODOMETRY PUBLISHER
+       Publishes nav_msgs/Odometry + TF.
+       Topics matched in gazebo_bridge.yaml.
+       ══════════════════════════════════════════════════════════════ -->
+  <gazebo>
+    <plugin
+      filename="ignition-gazebo-odometry-publisher-system"
+      name="ignition::gazebo::systems::OdometryPublisher">
+      <odom_frame>odom</odom_frame>
+      <robot_base_frame>base_link</robot_base_frame>
+      <odom_topic>/drone/odom</odom_topic>
+      <odom_publish_frequency>50</odom_publish_frequency>
+      <dimensions>3</dimensions>
+      <publish_tf>true</publish_tf>
+      <tf_topic>/model/drone/tf</tf_topic>
+    </plugin>
+  </gazebo>
+
+
+  <!-- ══════════════════════════════════════════════════════════════
+       RANGEFINDER (Benewake TFmini Plus) — height_link
+       height_link/height_joint are defined in drone.urdf.xacro (REV02
+       SolidWorks export) — not redefined here, position untouched.
+
+       Sensor block is commented out on purpose, same reasoning as
+       tfmini_rangefinder.urdf.xacro: if a standalone SDF model already
+       spawns this sensor and publishes /drone/height_link/range,
+       uncommenting this AND keeping that SDF spawn active will double-
+       publish. Only uncomment if this xacro becomes the sole source of
+       the rangefinder in Gazebo/Ignition.
+
+       TODO: confirm /drone/height_link/range matches whatever topic
+       your standalone SDF model actually publishes — rename here if not.
+       ══════════════════════════════════════════════════════════════ -->
+  <gazebo reference="height_link">
+    <material>Gazebo/DarkGrey</material>
+  </gazebo>
+
+  <!--
+  <gazebo reference="height_link">
+    <sensor name="height_link" type="gpu_lidar">
+      <pose>0 0 0 0 0 0</pose>
+      <gz_frame_id>height_link</gz_frame_id>
+      <always_on>1</always_on>
+      <update_rate>100</update_rate>
+      <topic>/drone/height_link/range</topic>
+      <lidar>
+        <scan>
+          <horizontal><samples>1</samples><resolution>1</resolution><min_angle>0</min_angle><max_angle>0</max_angle></horizontal>
+          <vertical><samples>1</samples><resolution>1</resolution><min_angle>0</min_angle><max_angle>0</max_angle></vertical>
+        </scan>
+        <range><min>0.10</min><max>12.0</max><resolution>0.01</resolution></range>
+        <noise><type>gaussian</type><mean>0.0</mean><stddev>0.02</stddev></noise>
+      </lidar>
+    </sensor>
+  </gazebo>
+  -->
+</robot>

@@ -1,0 +1,1976 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  drone_cage.sdf
+  ══════════════════════════════════════════════════════════════════════════════
+  ERC 2026 — Droning Sub-Task Competition Environment
+  ══════════════════════════════════════════════════════════════════════════════
+
+  COMPETITION SPECS (from ERC 2026 Rules Rev.2 §7.3.2.2):
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  Cage dimensions    : 10 × 10 × 4 m                                    │
+  │  Effective area     : disc with 3 m radius in center of cage           │
+  │  Lift-off spot      : 1 × 1 m square at center (0, 0)                 │
+  │  Landing target     : disc with 0.5 m radius (randomized each mission) │
+  │  ArUco lift-off     : original library ID 101, 15 × 15 cm              │
+  │  ArUco landing      : original library ID 102, 15 × 15 cm              │
+  │  Probes             : yellow-green aluminium, 200 mm long, 30 mm dia.  │
+  │  Mission            : 3 × (takeoff → detect → precision land)          │
+  │  Probe bonus        : detect 3 probes per mission (sector-based)        │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+  COORDINATE SYSTEM (ENU):
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  Origin (0,0,0) = center of cage floor = lift-off spot center          │
+  │  X → East  (right side of cage)                                        │
+  │  Y → North (far side of cage)                                          │
+  │  Z → Up                                                                │
+  │                                                                        │
+  │  Cage corners: (±5, ±5, 0) to (±5, ±5, 4)                            │
+  │  Competition disc: r = 3 m around origin                               │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+  SECTOR GRID (from rules Figure 11):
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  Each sector is 1×1 m. Sectors named A1-A5, B1-B5, C1-C5, D1-D5      │
+  │  A sectors: x > 0, y > 0  (northeast quadrant)                        │
+  │  B sectors: x > 0, y < 0  (southeast quadrant)                        │
+  │  C sectors: x < 0, y < 0  (southwest quadrant)                        │
+  │  D sectors: x < 0, y > 0  (northwest quadrant)                        │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+  PROBE POSITIONS (3 probes, randomized per rules but fixed here for testing):
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  Probe 1: sector A2 → position (0.25, 0.75, 0.01)                     │
+  │  Probe 2: sector C3 → position (-0.75, -1.25, 0.01)                   │
+  │  Probe 3: sector D4 → position (-1.25, 0.25, 0.01)                    │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+  LANDING TARGET POSITION (mission 1 default, judges randomize each run):
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  Landing spot: (1.5, 1.0) — within 3m radius of origin                │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+  USAGE:
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  1. Copy to: ~/PX4-Autopilot/Tools/simulation/gz/worlds/               │
+  │  2. In drone_gazebo.launch_px4.py change:                              │
+  │       'PX4_GZ_WORLD=default'  →  'PX4_GZ_WORLD=drone_cage'            │
+  │  3. Launch normally                                                     │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+  AUTHOR  : Hochschule Schmalkalden — ERC 2026 Drone Team
+  STACK   : Gazebo Harmonic (v8) | PX4 v1.14+ | ROS2 Humble
+-->
+<sdf version="1.9">
+  <world name="drone_cage">
+
+    <!-- ══════════════════════════════════════════════════════════════
+         REQUIRED GAZEBO HARMONIC SYSTEM PLUGINS
+         PX4 standalone mode requires ALL five of these.
+         Without them: sensors never tick, spawn fails, physics broken.
+         ══════════════════════════════════════════════════════════════ -->
+    <plugin filename="gz-sim-physics-system"
+            name="gz::sim::systems::Physics"/>
+
+    <plugin filename="gz-sim-user-commands-system"
+            name="gz::sim::systems::UserCommands"/>
+
+    <plugin filename="gz-sim-scene-broadcaster-system"
+            name="gz::sim::systems::SceneBroadcaster"/>
+
+    <plugin filename="gz-sim-sensors-system"
+            name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+
+    <plugin filename="gz-sim-contact-system"
+            name="gz::sim::systems::Contact"/>
+
+    <plugin filename="gz-sim-imu-system"
+            name="gz::sim::systems::Imu"/>
+
+    <plugin filename="gz-sim-navsat-system"
+            name="gz::sim::systems::NavSat"/>  
+
+    <plugin filename="gz-sim-magnetometer-system"
+            name="gz::sim::systems::Magnetometer"/>
+
+    <plugin filename="gz-sim-air-pressure-system"
+            name="gz::sim::systems::AirPressure"/>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         PHYSICS — matches PX4 default world settings exactly
+         ══════════════════════════════════════════════════════════════ -->
+    <physics type="ode">
+      <max_step_size>0.004</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+      <real_time_update_rate>250</real_time_update_rate>
+    </physics>
+
+    <gravity>0 0 -9.8</gravity>
+    <magnetic_field>6e-06 2.3e-05 -4.2e-05</magnetic_field>
+    <atmosphere type="adiabatic"/>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         SCENE — bright indoor lighting for good camera visibility
+         ══════════════════════════════════════════════════════════════ -->
+    <scene>
+      <grid>false</grid>
+      <ambient>0.8 0.8 0.8 1</ambient>
+      <background>0.9 0.9 0.9 1</background>
+      <shadows>true</shadows>
+    </scene>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         GPS / SPHERICAL COORDINATES
+         matches PX4 default world — keeps EKF happy
+         ══════════════════════════════════════════════════════════════ -->
+    <spherical_coordinates>
+      <surface_model>EARTH_WGS84</surface_model>
+      <world_frame_orientation>ENU</world_frame_orientation>
+      <latitude_deg>47.397971057728974</latitude_deg>
+      <longitude_deg>8.546163739800146</longitude_deg>
+      <elevation>0</elevation>
+    </spherical_coordinates>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         LIGHTING — bright overhead lights for indoor cage
+         Multiple point lights to eliminate shadows on ArUco markers
+         so camera detection is reliable
+         ══════════════════════════════════════════════════════════════ -->
+
+    <!-- Main overhead sun -->
+    <light name="sunUTC" type="directional">
+      <pose>0 0 500 0 0 0</pose>
+      <cast_shadows>false</cast_shadows>
+      <intensity>1</intensity>
+      <direction>0 0 -1</direction>
+      <diffuse>0.95 0.95 0.95 1</diffuse>
+      <specular>0.3 0.3 0.3 1</specular>
+      <attenuation>
+        <range>2000</range>
+        <linear>0</linear>
+        <constant>1</constant>
+        <quadratic>0</quadratic>
+      </attenuation>
+    </light>
+
+    <!-- Corner fill lights — eliminates dark spots in ArUco detection -->
+    <light name="light_corner_ne" type="point">
+      <pose>4 4 3.5 0 0 0</pose>
+      <cast_shadows>false</cast_shadows>
+      <intensity>0.6</intensity>
+      <diffuse>1 1 1 1</diffuse>
+      <specular>0.1 0.1 0.1 1</specular>
+      <attenuation>
+        <range>15</range>
+        <linear>0.1</linear>
+        <constant>0.5</constant>
+        <quadratic>0.01</quadratic>
+      </attenuation>
+    </light>
+
+    <light name="light_corner_nw" type="point">
+      <pose>-4 4 3.5 0 0 0</pose>
+      <cast_shadows>false</cast_shadows>
+      <intensity>0.6</intensity>
+      <diffuse>1 1 1 1</diffuse>
+      <specular>0.1 0.1 0.1 1</specular>
+      <attenuation>
+        <range>15</range>
+        <linear>0.1</linear>
+        <constant>0.5</constant>
+        <quadratic>0.01</quadratic>
+      </attenuation>
+    </light>
+
+    <light name="light_corner_se" type="point">
+      <pose>4 -4 3.5 0 0 0</pose>
+      <cast_shadows>false</cast_shadows>
+      <intensity>0.6</intensity>
+      <diffuse>1 1 1 1</diffuse>
+      <specular>0.1 0.1 0.1 1</specular>
+      <attenuation>
+        <range>15</range>
+        <linear>0.1</linear>
+        <constant>0.5</constant>
+        <quadratic>0.01</quadratic>
+      </attenuation>
+    </light>
+
+    <light name="light_corner_sw" type="point">
+      <pose>-4 -4 3.5 0 0 0</pose>
+      <cast_shadows>false</cast_shadows>
+      <intensity>0.6</intensity>
+      <diffuse>1 1 1 1</diffuse>
+      <specular>0.1 0.1 0.1 1</specular>
+      <attenuation>
+        <range>15</range>
+        <linear>0.1</linear>
+        <constant>0.5</constant>
+        <quadratic>0.01</quadratic>
+      </attenuation>
+    </light>
+
+    <!-- Center overhead — directly illuminates ArUco markers -->
+    <light name="light_center" type="point">
+      <pose>0 0 3.8 0 0 0</pose>
+      <cast_shadows>false</cast_shadows>
+      <intensity>1.2</intensity>
+      <diffuse>1 1 1 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <attenuation>
+        <range>10</range>
+        <linear>0.05</linear>
+        <constant>0.3</constant>
+        <quadratic>0.01</quadratic>
+      </attenuation>
+    </light>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         FLOOR — white/light grey for contrast with ArUco markers
+         10×10 m matching cage footprint
+         ══════════════════════════════════════════════════════════════ 
+    <model name="cage_floor">
+      <static>true</static>
+      <pose>0 0 0 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>1 1</size>
+            </plane>
+          </geometry>
+          <surface>
+            <friction><ode/></friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <plane><normal>0 0 1</normal><size>10 10</size></plane>
+          </geometry>
+          <material>
+            <ambient>0.85 0.85 0.85 1</ambient>
+            <diffuse>0.85 0.85 0.85 1</diffuse>
+            <specular>0.1 0.1 0.1 1</specular>
+            <pbr>
+              <metal>
+                <albedo_map>materials/textures/martian_floor.png</albedo_map>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+      </link>
+    </model> -->
+
+    <!-- ══════════════════════════════════════════════════════════════
+         CAGE WALLS — 4 walls + ceiling, 10×10×4 m
+         Semi-transparent so Gazebo GUI view is useful
+         Walls act as collision boundaries (safety net simulation)
+         ══════════════════════════════════════════════════════════════ -->
+
+    <!-- North wall (Y+5) 
+    <model name="wall_north">
+      <static>true</static>
+      <pose>0 5 2 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>10 0.05 4</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>10 0.05 4</size></box>
+          </geometry>
+          <material>
+            <ambient>0.6 0.8 1.0 0.3</ambient>
+            <diffuse>0.6 0.8 1.0 0.3</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>-->
+
+    <!-- South wall (Y-5) 
+    <model name="wall_south">
+      <static>true</static>
+      <pose>0 -5 2 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>10 0.05 4</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>10 0.05 4</size></box>
+          </geometry>
+          <material>
+            <ambient>0.6 0.8 1.0 0.3</ambient>
+            <diffuse>0.6 0.8 1.0 0.3</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>-->
+
+    <!-- East wall (X+5) 
+    <model name="wall_east">
+      <static>true</static>
+      <pose>5 0 2 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>0.05 10 4</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>0.05 10 4</size></box>
+          </geometry>
+          <material>
+            <ambient>0.6 0.8 1.0 0.3</ambient>
+            <diffuse>0.6 0.8 1.0 0.3</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>-->
+
+    <!-- West wall (X-5) 
+    <model name="wall_west">
+      <static>true</static>
+      <pose>-5 0 2 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>0.05 10 4</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>0.05 10 4</size></box>
+          </geometry>
+          <material>
+            <ambient>0.6 0.8 1.0 0.3</ambient>
+            <diffuse>0.6 0.8 1.0 0.3</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>-->
+
+    <!-- Ceiling (Z+4) 
+    <model name="cage_ceiling">
+      <static>true</static>
+      <pose>0 0 4 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>10 10 0.05</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>10 10 0.05</size></box>
+          </geometry>
+          <material>
+            <ambient>0.6 0.8 1.0 0.2</ambient>
+            <diffuse>0.6 0.8 1.0 0.2</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model> -->
+
+    <!-- ══════════════════════════════════════════════════════════════
+         COMPETITION AREA MARKER — 3m radius disc outline on floor
+         Visual guide for operators, not a collision object
+         ══════════════════════════════════════════════════════════════ 
+    <model name="competition_area_marker">
+      <static>true</static>
+      <pose>0 0 0.001 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>3.0</radius>
+              <length>0.002</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.65 0.22 0.12 0.1</ambient>
+            <diffuse>0.65 0.22 0.12 0.1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>-->
+
+    <!-- ══════════════════════════════════════════════════════════════
+         LIFT-OFF SPOT — 1×1 m square at origin (0,0)
+         Marked with ArUco ID 101 (15×15 cm) in center
+         White square + ArUco marker on top
+         ══════════════════════════════════════════════════════════════ -->
+
+    <!-- White 1×1m lift-off pad -
+    <model name="liftoff_pad">
+      <static>true</static>
+      <pose>0 0 0.002 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>1.0 1.0 0.002</size></box>
+          </geometry>
+          <material>
+            <ambient>1.0 1.0 1.0 1</ambient>
+            <diffuse>1.0 1.0 1.0 1</diffuse>
+            <specular>0.1 0.1 0.1 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>-->
+
+    <!-- ArUco marker ID 101 — lift-off spot (15×15 cm) -->
+    <!-- Uses PX4's existing arucotag model as base reference -->
+    <!-- Note: In real competition this is ArUco original library ID 101 -->
+    <!-- For simulation we use a visual plane with distinctive marking -->
+    <model name="aruco_liftoff_101">
+      <static>true</static>
+      <pose>0 0 0.004 0 0 0</pose>
+      <link name="base">
+        <visual name="visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.15 0.15</size>
+            </plane>
+          </geometry>
+          <material>
+            <diffuse>1 1 1 1</diffuse>
+            <specular>0.4 0.4 0.4 1</specular>
+            <pbr>
+              <metal>
+                <!-- Uses PX4's existing arucotag PNG — replace with ID 101 PNG -->
+                <albedo_map>models://aruco_101/materials/textures/aruco_101.png</albedo_map>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         LANDING TARGET — 0.5m radius disc
+         Position: (1.5, 1.0) — within 3m radius (sector A2 area)
+         In real competition judges randomize this each mission
+         Marked with ArUco ID 102 (15×15 cm)
+         ══════════════════════════════════════════════════════════════ -->
+
+    <!-- Orange 0.5m radius landing disc -->
+    <model name="landing_target_disc">
+      <static>true</static>
+      <pose>2.0 -2.0 0.002 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.5</radius>
+              <length>0.002</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <!-- Bright orange — highly visible from above -->
+            <ambient>1.0 0.4 0.0 1</ambient>
+            <diffuse>1.0 0.4 0.0 1</diffuse>
+            <specular>0.2 0.1 0.0 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ArUco marker ID 102 — landing target (15×15 cm) -->
+    <model name="aruco_landing_102">
+      <static>true</static>
+      <pose>2.0 -2.0 0.005 0 0 0</pose> 
+      <link name="base">
+        <visual name="visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.15 0.15</size>
+            </plane>
+          </geometry>
+          <material>
+            <diffuse>1 1 1 1</diffuse>
+            <specular>0.4 0.4 0.4 1</specular>
+            <pbr>
+              <metal>
+                <!-- Replace with ArUco ID 102 PNG for real detection -->
+                <albedo_map>models://aruco_102/materials/textures/aruco_102.png</albedo_map>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+
+        <!-- ══════════════════════════════════════════════════════════════
+         Competition Probes (Yellow/Green)
+         These are placed on the ground along the flight lines
+         ══════════════════════════════════════════════════════════════ -->
+    <include>
+      <uri>model://probe_yellow_green</uri>
+      <name>probe_sector_A1</name>
+      <pose>1.45 0.85 0.015 0 1.5708 0</pose>
+    </include>
+    <include>
+      <uri>model://probe_yellow_green</uri>
+      <name>probe_sector_B2</name>
+      <pose>-1.75 -1.85 0.015 0 1.5708 0</pose>
+    </include>
+    <include>
+      <uri>model://probe_yellow_green</uri>
+      <name>probe_sector_C1</name>
+      <pose>-1.25 1.35 0.015 0 1.5708 0</pose>
+    </include>
+    <!--<include>
+      <uri>model://probe_yellow_green</uri>
+      <name>probe_sector_D3</name>
+      <pose>13.5 21.0 0 0 1.5708 0</pose>
+    </include>
+    <include>
+      <uri>model://probe_yellow_green</uri>
+      <name>probe_sector_A3</name>
+      <pose>0.0 -6.5 0 0 1.5708 0</pose>
+    </include>-->
+
+    <!-- ══════════════════════════════════════════════════════════════
+         PROBES — 3 yellow-green aluminium cylinders
+         Specs: 200mm long, 30mm diameter (from rules §7.3.4.3)
+         Scattered within 3m radius for drone to detect
+
+         Probe 1: sector A2  → (0.25,  0.75,  0.01)
+         Probe 2: sector C3  → (-0.75, -1.25, 0.01)
+         Probe 3: sector D4  → (-1.25,  0.25, 0.01)
+
+         Lying flat on floor (rotated 90° around Y axis)
+         ══════════════════════════════════════════════════════════════ -->
+
+    <!-- Probe 1 — sector A2 
+    <model name="probe_1">
+      <static>true</static>
+      Lying flat: rotate 90° around Y so cylinder axis is horizontal 
+      <pose>0.25 0.75 0.015 0 1.5708 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              200mm long = 0.2m, 30mm diameter = 0.015m radius 
+              <radius>0.015</radius>
+              <length>0.2</length>
+            </cylinder>
+          </geometry>
+          <material>
+             Yellow-green as per rules §7.3.4.3 
+            <ambient>0.6 1.0 0.0 1</ambient>
+            <diffuse>0.6 1.0 0.0 1</diffuse>
+            <specular>0.8 0.8 0.8 1</specular>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>0.015</radius>
+              <length>0.2</length>
+            </cylinder>
+          </geometry>
+        </collision>
+      </link>
+    </model>-->
+
+    <!-- Probe 2 — sector C3 
+    <model name="probe_2">
+      <static>true</static>
+      <pose>-0.75 -1.25 0.015 0 1.5708 0.785</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.015</radius>
+              <length>0.2</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.6 1.0 0.0 1</ambient>
+            <diffuse>0.6 1.0 0.0 1</diffuse>
+            <specular>0.8 0.8 0.8 1</specular>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>0.015</radius>
+              <length>0.2</length>
+            </cylinder>
+          </geometry>
+        </collision>
+      </link>
+    </model>-->
+
+    <!-- Probe 3 — sector D4 
+    <model name="probe_3">
+      <static>true</static>
+      <pose>-1.25 0.25 0.015 0 1.5708 1.571</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.015</radius>
+              <length>0.2</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.6 1.0 0.0 1</ambient>
+            <diffuse>0.6 1.0 0.0 1</diffuse>
+            <specular>0.8 0.8 0.8 1</specular>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>0.015</radius>
+              <length>0.2</length>
+            </cylinder>
+          </geometry>
+        </collision>
+      </link>
+    </model>-->
+
+    <!-- ══════════════════════════════════════════════════════════════
+         SECTOR GRID LINES — thin lines on floor showing 1×1m sectors
+         Visual guide matching Figure 11 from ERC 2026 rules
+         Only within 3m radius area
+         ══════════════════════════════════════════════════════════════ -->
+
+    <!-- Grid line X=0 (vertical center) -->
+    <model name="grid_x0">
+      <static>true</static>
+      <pose>0 0 0.001 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.01 6.0 0.001</size></box></geometry>
+          <material>
+            <ambient>0.5 0.5 0.5 0.5</ambient>
+            <diffuse>0.5 0.5 0.5 0.5</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Grid line Y=0 (horizontal center) -->
+    <model name="grid_y0">
+      <static>true</static>
+      <pose>0 0 0.001 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>6.0 0.01 0.001</size></box></geometry>
+          <material>
+            <ambient>0.5 0.5 0.5 0.5</ambient>
+            <diffuse>0.5 0.5 0.5 0.5</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Grid line X=1 -->
+    <model name="grid_x1">
+      <static>true</static>
+      <pose>1.0 0 0.001 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.01 6.0 0.001</size></box></geometry>
+          <material><ambient>0.5 0.5 0.5 0.3</ambient><diffuse>0.5 0.5 0.5 0.3</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Grid line X=-1 -->
+    <model name="grid_xn1">
+      <static>true</static>
+      <pose>-1.0 0 0.001 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.01 6.0 0.001</size></box></geometry>
+          <material><ambient>0.5 0.5 0.5 0.3</ambient><diffuse>0.5 0.5 0.5 0.3</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Grid line X=2 -->
+    <model name="grid_x2">
+      <static>true</static>
+      <pose>2.0 0 0.001 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.01 6.0 0.001</size></box></geometry>
+          <material><ambient>0.5 0.5 0.5 0.3</ambient><diffuse>0.5 0.5 0.5 0.3</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Grid line X=-2 -->
+    <model name="grid_xn2">
+      <static>true</static>
+      <pose>-2.0 0 0.001 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.01 6.0 0.001</size></box></geometry>
+          <material><ambient>0.5 0.5 0.5 0.3</ambient><diffuse>0.5 0.5 0.5 0.3</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Grid line X=3 -->
+    <model name="grid_x3">
+      <static>true</static>
+      <pose>3.0 0 0.001 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.01 6.0 0.001</size></box></geometry>
+          <material><ambient>0.5 0.5 0.5 0.3</ambient><diffuse>0.5 0.5 0.5 0.3</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Grid line X=-3 -->
+    <model name="grid_xn3">
+      <static>true</static>
+      <pose>-3.0 0 0.001 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.01 6.0 0.001</size></box></geometry>
+          <material><ambient>0.5 0.5 0.5 0.3</ambient><diffuse>0.5 0.5 0.5 0.3</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Grid line Y=1 -->
+    <model name="grid_y1">
+      <static>true</static>
+      <pose>0 1.0 0.001 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>6.0 0.01 0.001</size></box></geometry>
+          <material><ambient>0.5 0.5 0.5 0.3</ambient><diffuse>0.5 0.5 0.5 0.3</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Grid line Y=-1 -->
+    <model name="grid_yn1">
+      <static>true</static>
+      <pose>0 -1.0 0.001 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>6.0 0.01 0.001</size></box></geometry>
+          <material><ambient>0.5 0.5 0.5 0.3</ambient><diffuse>0.5 0.5 0.5 0.3</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Grid line Y=2 -->
+    <model name="grid_y2">
+      <static>true</static>
+      <pose>0 2.0 0.001 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>6.0 0.01 0.001</size></box></geometry>
+          <material><ambient>0.5 0.5 0.5 0.3</ambient><diffuse>0.5 0.5 0.5 0.3</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Grid line Y=-2 -->
+    <model name="grid_yn2">
+      <static>true</static>
+      <pose>0 -2.0 0.001 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>6.0 0.01 0.001</size></box></geometry>
+          <material><ambient>0.5 0.5 0.5 0.3</ambient><diffuse>0.5 0.5 0.5 0.3</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Grid line Y=3 -->
+    <model name="grid_y3">
+      <static>true</static>
+      <pose>0 3.0 0.001 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>6.0 0.01 0.001</size></box></geometry>
+          <material><ambient>0.5 0.5 0.5 0.3</ambient><diffuse>0.5 0.5 0.5 0.3</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Grid line Y=-3 -->
+    <model name="grid_yn3">
+      <static>true</static>
+      <pose>0 -3.0 0.001 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>6.0 0.01 0.001</size></box></geometry>
+          <material><ambient>0.5 0.5 0.5 0.3</ambient><diffuse>0.5 0.5 0.5 0.3</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <gravity>0 0 -9.8</gravity>
+    <magnetic_field>6e-06 2.3e-05 -4.2e-05</magnetic_field>
+    <atmosphere type="adiabatic"/>
+    <scene>
+      <grid>false</grid>
+      <ambient>0.4 0.4 0.4 1</ambient>
+      <background>0.7 0.7 0.7 1</background>
+      <shadows>true</shadows>
+    </scene>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/hexarotor/models/grasspatch</uri>
+      <name>grasspatch</name>
+      <pose>2.71574 -2.80395 0 0 -0 0.006057</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/hexarotor/models/grasspatch</uri>
+      <name>grasspatch_0</name>
+      <pose>-12.2297 -2.64582 0 0 -0 0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/hexarotor/models/grasspatch</uri>
+      <name>grasspatch_1</name>
+      <pose>2.62754 12.1062 0 0 -0 0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/hexarotor/models/grasspatch</uri>
+      <name>grasspatch_2</name>
+      <pose>-12.0931 11.9289 0 0 -0 0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/hexarotor/models/grasspatch</uri>
+      <name>grasspatch_3</name>
+      <pose>16.9776 12.1962 0 0 -0 0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/hexarotor/models/grasspatch</uri>
+      <name>grasspatch_4</name>
+      <pose>2.28684 26.938 0 0 -0 0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/hexarotor/models/grasspatch</uri>
+      <name>grasspatch_5</name>
+      <pose>16.5899 26.9995 0 0 -0 0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Oak Tree</uri>
+      <name>Pine Tree_11</name>
+      <pose>10.0031 4.69601 0 0 -0 0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Pine Tree</uri>
+      <name>Pine Tree_12</name>
+      <pose>9.38057 2.24489 0 0 -0 0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Oak Tree</uri>
+      <name>Pine Tree_13</name>
+      <pose>8.95187 -2.43736 0 0 -0 0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Pine Tree</uri>
+      <name>Pine Tree_14</name>
+      <pose>9.54099 -5.29967 0 0 -0 0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Oak Tree</uri>
+      <name>Pine Tree_15</name>
+      <pose>8.56424 -7.36834 0 0 -0 0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Pine Tree</uri>
+      <name>Pine Tree_16</name>
+      <pose>7.04987 -9.30259 0 0 -0 0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Oak Tree</uri>
+      <name>Pine Tree_17</name>
+      <pose>4.64341 -9.56548 0 0 -0 0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Pine Tree</uri>
+      <name>Pine Tree_18</name>
+      <pose>2.39497 -9.53658 0 0 -0 0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Oak Tree</uri>
+      <name>Pine Tree_19</name>
+      <pose>-0.978211 -9.12685 0 0 -0 0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Pine Tree</uri>
+      <name>Pine Tree_20</name>
+      <pose>-6.60386 -9.4906 0 0 -0 0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Oak Tree</uri>
+      <name>Pine Tree_21</name>
+      <pose>-11.7872 -9.60952 0 0 -0 0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Oak Tree</uri>
+      <name>Pine Tree_19_1</name>
+      <pose>-17.6272 5.0484 0 0 -0 0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Oak Tree</uri>
+      <name>Pine Tree_19_2</name>
+      <pose>-18.7952 -4.79736 0 0 -0 0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Oak Tree</uri>
+      <name>Pine Tree_19_3</name>
+      <pose>-18.6571 13.5589 0 0 -0 0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Oak Tree</uri>
+      <name>Pine Tree_19_4</name>
+      <pose>-13.7446 18.3234 0 0 -0 0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Oak Tree</uri>
+      <name>Pine Tree_19_5</name>
+      <pose>20.1207 7.17708 0 0 -0 0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Oak Tree</uri>
+      <name>Pine Tree_19_6</name>
+      <pose>-3.71164 21.6207 0 0 -0 0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Oak Tree</uri>
+      <name>Pine Tree_19_7</name>
+      <pose>-7.45162 17.9798 0 0 -0 0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Oak Tree</uri>
+      <name>Pine Tree_19_8</name>
+      <pose>-3.88653 25.1364 0 0 -0 0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Oak Tree</uri>
+      <name>Pine Tree_19_9</name>
+      <pose>-4.09489 29.0163 0 0 -0 0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Oak Tree</uri>
+      <name>Pine Tree_19_10</name>
+      <pose>21.3008 12.6766 0 0 -0 0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Oak Tree</uri>
+      <name>Pine Tree_19_11</name>
+      <pose>20.1494 19.5156 0 0 -0 0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Oak Tree</uri>
+      <name>Pine Tree_19_12</name>
+      <pose>13.1837 8.1871 0 0 -0 0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Oak Tree</uri>
+      <name>Pine Tree_19_13</name>
+      <pose>20.0557 23.4209 0 0 -0 0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Oak Tree</uri>
+      <name>Pine Tree_19_14</name>
+      <pose>20.8101 27.2073 0 0 -0 0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Oak Tree</uri>
+      <name>Pine Tree_19_15</name>
+      <pose>18.508 32.5244 0 0 -0 0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Oak Tree</uri>
+      <name>Pine Tree_19_16</name>
+      <pose>12.3362 33.1989 0 0 -0 0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Oak Tree</uri>
+      <name>Pine Tree_19_17</name>
+      <pose>7.92068 33.4253 0 0 -0 0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Oak Tree</uri>
+      <name>Pine Tree_19_18</name>
+      <pose>4.19562 33.3749 0 0 -0 0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Oak Tree</uri>
+      <name>Pine Tree_19_19</name>
+      <pose>-3.1997 32.8927 0 0 -0 0</pose>
+    </include>
+
+    <!-- ============================================================ -->
+    <!-- ADDED: 3m-radius boundary outline around the takeoff point.     -->
+    <!-- This marks the area within which marker 102 (landing target)   -->
+    <!-- is randomized relative to marker 101 (takeoff / world origin).  -->
+    <!-- It is a visual-only, non-colliding, unfilled ring (line, not a  -->
+    <!-- highlighted disc). Center assumed at world origin (0,0) where   -->
+    <!-- marker 101 sits at takeoff; move the <pose> below if your     -->
+    <!-- actual takeoff point in this world differs.                    -->
+    <!-- ============================================================ -->
+    <model name="marker102_boundary_3m">
+      <static>true</static>
+      <pose>0.0 0.0 0 0 0 0</pose>
+      <link name="link">
+        <visual name="seg_0">
+          <pose>3.0000 0.0000 0.01 0 0 1.5708</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_1">
+          <pose>2.9886 0.2615 0.01 0 0 1.6581</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_2">
+          <pose>2.9544 0.5209 0.01 0 0 1.7453</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_3">
+          <pose>2.8978 0.7765 0.01 0 0 1.8326</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_4">
+          <pose>2.8191 1.0261 0.01 0 0 1.9199</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_5">
+          <pose>2.7189 1.2679 0.01 0 0 2.0071</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_6">
+          <pose>2.5981 1.5000 0.01 0 0 2.0944</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_7">
+          <pose>2.4575 1.7207 0.01 0 0 2.1817</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_8">
+          <pose>2.2981 1.9284 0.01 0 0 2.2689</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_9">
+          <pose>2.1213 2.1213 0.01 0 0 2.3562</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_10">
+          <pose>1.9284 2.2981 0.01 0 0 2.4435</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_11">
+          <pose>1.7207 2.4575 0.01 0 0 2.5307</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_12">
+          <pose>1.5000 2.5981 0.01 0 0 2.6180</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_13">
+          <pose>1.2679 2.7189 0.01 0 0 2.7053</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_14">
+          <pose>1.0261 2.8191 0.01 0 0 2.7925</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_15">
+          <pose>0.7765 2.8978 0.01 0 0 2.8798</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_16">
+          <pose>0.5209 2.9544 0.01 0 0 2.9671</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_17">
+          <pose>0.2615 2.9886 0.01 0 0 3.0543</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_18">
+          <pose>0.0000 3.0000 0.01 0 0 3.1416</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_19">
+          <pose>-0.2615 2.9886 0.01 0 0 3.2289</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_20">
+          <pose>-0.5209 2.9544 0.01 0 0 3.3161</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_21">
+          <pose>-0.7765 2.8978 0.01 0 0 3.4034</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_22">
+          <pose>-1.0261 2.8191 0.01 0 0 3.4907</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_23">
+          <pose>-1.2679 2.7189 0.01 0 0 3.5779</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_24">
+          <pose>-1.5000 2.5981 0.01 0 0 3.6652</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_25">
+          <pose>-1.7207 2.4575 0.01 0 0 3.7525</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_26">
+          <pose>-1.9284 2.2981 0.01 0 0 3.8397</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_27">
+          <pose>-2.1213 2.1213 0.01 0 0 3.9270</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_28">
+          <pose>-2.2981 1.9284 0.01 0 0 4.0143</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_29">
+          <pose>-2.4575 1.7207 0.01 0 0 4.1015</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_30">
+          <pose>-2.5981 1.5000 0.01 0 0 4.1888</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_31">
+          <pose>-2.7189 1.2679 0.01 0 0 4.2761</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_32">
+          <pose>-2.8191 1.0261 0.01 0 0 4.3633</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_33">
+          <pose>-2.8978 0.7765 0.01 0 0 4.4506</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_34">
+          <pose>-2.9544 0.5209 0.01 0 0 4.5379</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_35">
+          <pose>-2.9886 0.2615 0.01 0 0 4.6251</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_36">
+          <pose>-3.0000 0.0000 0.01 0 0 4.7124</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_37">
+          <pose>-2.9886 -0.2615 0.01 0 0 4.7997</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_38">
+          <pose>-2.9544 -0.5209 0.01 0 0 4.8869</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_39">
+          <pose>-2.8978 -0.7765 0.01 0 0 4.9742</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_40">
+          <pose>-2.8191 -1.0261 0.01 0 0 5.0615</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_41">
+          <pose>-2.7189 -1.2679 0.01 0 0 5.1487</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_42">
+          <pose>-2.5981 -1.5000 0.01 0 0 5.2360</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_43">
+          <pose>-2.4575 -1.7207 0.01 0 0 5.3233</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_44">
+          <pose>-2.2981 -1.9284 0.01 0 0 5.4105</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_45">
+          <pose>-2.1213 -2.1213 0.01 0 0 5.4978</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_46">
+          <pose>-1.9284 -2.2981 0.01 0 0 5.5851</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_47">
+          <pose>-1.7207 -2.4575 0.01 0 0 5.6723</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_48">
+          <pose>-1.5000 -2.5981 0.01 0 0 5.7596</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_49">
+          <pose>-1.2679 -2.7189 0.01 0 0 5.8469</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_50">
+          <pose>-1.0261 -2.8191 0.01 0 0 5.9341</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_51">
+          <pose>-0.7765 -2.8978 0.01 0 0 6.0214</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_52">
+          <pose>-0.5209 -2.9544 0.01 0 0 6.1087</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_53">
+          <pose>-0.2615 -2.9886 0.01 0 0 6.1959</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_54">
+          <pose>-0.0000 -3.0000 0.01 0 0 6.2832</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_55">
+          <pose>0.2615 -2.9886 0.01 0 0 6.3705</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_56">
+          <pose>0.5209 -2.9544 0.01 0 0 6.4577</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_57">
+          <pose>0.7765 -2.8978 0.01 0 0 6.5450</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_58">
+          <pose>1.0261 -2.8191 0.01 0 0 6.6323</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_59">
+          <pose>1.2679 -2.7189 0.01 0 0 6.7195</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_60">
+          <pose>1.5000 -2.5981 0.01 0 0 6.8068</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_61">
+          <pose>1.7207 -2.4575 0.01 0 0 6.8941</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_62">
+          <pose>1.9284 -2.2981 0.01 0 0 6.9813</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_63">
+          <pose>2.1213 -2.1213 0.01 0 0 7.0686</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_64">
+          <pose>2.2981 -1.9284 0.01 0 0 7.1558</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_65">
+          <pose>2.4575 -1.7207 0.01 0 0 7.2431</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_66">
+          <pose>2.5981 -1.5000 0.01 0 0 7.3304</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_67">
+          <pose>2.7189 -1.2679 0.01 0 0 7.4176</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_68">
+          <pose>2.8191 -1.0261 0.01 0 0 7.5049</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_69">
+          <pose>2.8978 -0.7765 0.01 0 0 7.5922</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_70">
+          <pose>2.9544 -0.5209 0.01 0 0 7.6794</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+        <visual name="seg_71">
+          <pose>2.9886 -0.2615 0.01 0 0 7.7667</pose>
+          <geometry>
+            <box>
+              <size>0.2618 0.04 0.002</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.1 0.1 1</ambient>
+            <diffuse>1 0.1 0.1 1</diffuse>
+            <emissive>0.3 0 0 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+  </world>
+</sdf>

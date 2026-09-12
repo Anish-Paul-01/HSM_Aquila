@@ -1,0 +1,815 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  model.sdf — my_drone (REV02 airframe, full model)
+  ══════════════════════════════════════════════════════════════════════════════
+  Combines:
+    - REV02 SolidWorks export values (base_link, rotor_1..4, imu_link,
+      height_link, camera_link, rgb_link, mono_right_link, mono_left_link)
+      for every mass/inertia/pose — same numbers as drone.urdf.xacro, verbatim.
+    - Validated motor constants from your real reference SDF:
+      motorConstant 1.269e-05, momentConstant 0.019, maxRotVelocity 930.0.
+    - Real OAK-D Pro camera intrinsics/distortion from your reference SDF
+      (intrinsic calibration doesn't change with mount position, only pose does).
+    - gz-sim-* plugin naming (Gazebo Harmonic), not ignition-gazebo-* —
+      your reference file confirmed this is the correct API for your install.
+
+  Deliberate deviations from other source files, flagged here and in the
+  reply text — check these before trusting this in SITL:
+    1. All four rotor joints use axis "0 0 1" (not REV02's per-joint signs)
+       so turningDirection alone encodes CW/CCW. Avoids double sign-encoding
+       with the motor plugin. See reply for reasoning.
+    2. IMU/baro/mag sensors moved from base_link to the real imu_link pose
+       (0.027618, 0, 0.09424) — matches physical Pixhawk mount location, but
+       your PX4-Gazebo bridge config may assume gz_frame_id="base_link" and
+       needs checking against this change.
+    3. No MulticopterVelocityControl plugin — your reference SDF doesn't
+       have one either, consistent with PX4 driving motors directly via the
+       actuator output bridge rather than a Gazebo-side velocity controller.
+    4. No OdometryPublisher plugin — also absent from your reference SDF;
+       PX4 already provides vehicle_odometry via uXRCE-DDS. Add back only
+       if you specifically want Gazebo-side odom/TF for non-PX4 debugging.
+    5. Rotor collision boxes reuse your reference's 0.254 x 0.017 x 0.00085 m
+       size — that's a 10" footprint, not your actual 15x5" props. Kept
+       verbatim since it's from your real file, but doesn't match prop specs.
+  ══════════════════════════════════════════════════════════════════════════════
+-->
+<sdf version='1.9'>
+  <model name='my_drone'>
+
+    <pose>0 0 0.24 0 0 0</pose>
+    <self_collide>false</self_collide>
+    <static>false</static>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         BASE LINK — REV02 SolidWorks inertials, verbatim
+         ══════════════════════════════════════════════════════════════ -->
+    <link name="base_link">
+      <inertial>
+        <pose>8.4077e-05 0.0071363 0.0032466 0 0 0</pose>
+        <mass>2.9001</mass>
+        <inertia>
+          <ixx>0.0037726</ixx>
+          <ixy>6.1155e-08</ixy>
+          <ixz>-2.3148e-08</ixz>
+          <iyy>0.004627</iyy>
+          <iyz>-2.0369e-07</iyz>
+          <izz>0.0016329</izz>
+        </inertia>
+      </inertial>
+
+      <gravity>true</gravity>
+      <self_collide>false</self_collide>
+      <velocity_decay/>
+
+      <visual name="base_link_visual">
+        <geometry>
+          <mesh><uri>model://my_drone/meshes/base_link.STL</uri></mesh>
+        </geometry>
+        <material><diffuse>0.79216 0.81961 0.93333 1</diffuse></material>
+      </visual>
+
+      <collision name="base_link_collision">
+        <geometry>
+          <mesh><uri>model://my_drone/meshes/base_link.STL</uri></mesh>
+        </geometry>
+        <surface>
+          <contact>
+            <ode><min_depth>0.001</min_depth><max_vel>0</max_vel></ode>
+          </contact>
+          <friction><ode/></friction>
+        </surface>
+      </collision>
+
+      <!-- IMU — kept on base_link (not imu_link) so the default gz sensor
+           topic matches what the PX4-Gazebo bridge subscribes to. -->
+      <sensor name="imu_sensor" type="imu">
+        <gz_frame_id>base_link</gz_frame_id>
+        <always_on>1</always_on>
+        <update_rate>250</update_rate>
+        <imu>
+          <angular_velocity>
+            <x><noise type="gaussian"><mean>0.0</mean><stddev>0.0008726646</stddev></noise></x>
+            <y><noise type="gaussian"><mean>0.0</mean><stddev>0.0008726646</stddev></noise></y>
+            <z><noise type="gaussian"><mean>0.0</mean><stddev>0.0008726646</stddev></noise></z>
+          </angular_velocity>
+          <linear_acceleration>
+            <x><noise type="gaussian"><mean>0.0</mean><stddev>0.00784</stddev></noise></x>
+            <y><noise type="gaussian"><mean>0.0</mean><stddev>0.00784</stddev></noise></y>
+            <z><noise type="gaussian"><mean>0.0</mean><stddev>0.00784</stddev></noise></z>
+          </linear_acceleration>
+        </imu>
+      </sensor>
+
+      <!-- Air pressure / barometer -->
+      <sensor name="air_pressure_sensor" type="air_pressure">
+        <gz_frame_id>base_link</gz_frame_id>
+        <always_on>1</always_on>
+        <update_rate>50</update_rate>
+        <air_pressure>
+          <pressure>
+            <noise type="gaussian"><mean>0</mean><stddev>3</stddev></noise>
+          </pressure>
+        </air_pressure>
+      </sensor>
+
+      <!-- Magnetometer -->
+      <sensor name="magnetometer_sensor" type="magnetometer">
+        <gz_frame_id>base_link</gz_frame_id>
+        <always_on>1</always_on>
+        <update_rate>100</update_rate>
+        <magnetometer>
+          <x><noise type="gaussian"><stddev>0.0001</stddev></noise></x>
+          <y><noise type="gaussian"><stddev>0.0001</stddev></noise></y>
+          <z><noise type="gaussian"><stddev>0.0001</stddev></noise></z>
+        </magnetometer>
+      </sensor>
+
+      <!-- NavSat / GPS — no real CAD position exists for an antenna, kept
+           as a simple 5cm offset placeholder. Outdoor GPS-test profile only;
+           the indoor competition profile keeps EKF2_GPS_CTRL=0 and ignores this. -->
+      <sensor name="navsat_sensor" type="navsat">
+        <pose>0 0 0.05 0 0 0</pose>
+        <gz_frame_id>base_link</gz_frame_id>
+        <always_on>1</always_on>
+        <update_rate>30</update_rate>
+      </sensor>
+    </link>
+
+    <!-- Joint State Publisher -->
+    <plugin filename="gz-sim-joint-state-publisher-system"
+            name="gz::sim::systems::JointStatePublisher">
+      <topic>/my_drone/joint_states</topic>
+      <joint_name>prop_1</joint_name>
+      <joint_name>prop_2</joint_name>
+      <joint_name>prop_3</joint_name>
+      <joint_name>prop_4</joint_name>
+    </plugin>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         ROTOR 1 — front-left (+x,+y) CW — REV02 pose/inertia
+         ══════════════════════════════════════════════════════════════ -->
+    <link name="rotor_1">
+      <gravity>true</gravity>
+      <self_collide>false</self_collide>
+      <velocity_decay/>
+      <pose>0.27145 0.27063 0.05835 0 0 0</pose>
+      <inertial>
+        <pose>-8.536e-08 -6.6348e-08 -0.0047651 0 0 0</pose>
+        <mass>0.035493</mass>
+        <inertia>
+          <ixx>0.0002626</ixx>
+          <ixy>0.0001409</ixy>
+          <ixz>9.4387e-12</ixz>
+          <iyy>7.8206e-05</iyy>
+          <iyz>-7.9768e-11</iyz>
+          <izz>0.00034048</izz>
+        </inertia>
+      </inertial>
+      <visual name="rotor_1_visual">
+        <geometry>
+          <mesh><uri>model://my_drone/meshes/rotor_1.STL</uri></mesh>
+        </geometry>
+        <material><diffuse>0.79216 0.81961 0.93333 1</diffuse></material>
+      </visual>
+      <collision name="rotor_1_collision">
+        <geometry><box><size>0.254 0.017 0.00085</size></box></geometry>
+        <surface>
+          <contact><ode><min_depth>0.001</min_depth><max_vel>0</max_vel></ode></contact>
+          <friction><ode/></friction>
+        </surface>
+      </collision>
+    </link>
+
+    <joint name="prop_1" type="revolute">
+      <parent>base_link</parent>
+      <child>rotor_1</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit><lower>-1e+16</lower><upper>1e+16</upper></limit>
+        <dynamics><spring_reference>0</spring_reference><spring_stiffness>0</spring_stiffness></dynamics>
+      </axis>
+    </joint>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         ROTOR 2 — front-right (+x,-y) CCW — REV02 pose/inertia
+         ══════════════════════════════════════════════════════════════ -->
+    <link name="rotor_2">
+      <gravity>true</gravity>
+      <self_collide>false</self_collide>
+      <velocity_decay/>
+      <pose>0.27145 -0.27063 0.05835 0 0 0</pose>
+      <inertial>
+        <pose>-1.162e-07 3.4698e-08 -0.0047651 0 0 0</pose>
+        <mass>0.035493</mass>
+        <inertia>
+          <ixx>0.00021554</ixx>
+          <ixy>-0.00016222</ixy>
+          <ixz>-4.6e-11</ixz>
+          <iyy>0.00012527</iyy>
+          <iyz>-2.4414e-11</iyz>
+          <izz>0.00034048</izz>
+        </inertia>
+      </inertial>
+      <visual name="rotor_2_visual">
+        <geometry>
+          <mesh><uri>model://my_drone/meshes/rotor_2.STL</uri></mesh>
+        </geometry>
+        <material><diffuse>0.79216 0.81961 0.93333 1</diffuse></material>
+      </visual>
+      <collision name="rotor_2_collision">
+        <geometry><box><size>0.254 0.017 0.00085</size></box></geometry>
+        <surface>
+          <contact><ode><min_depth>0.001</min_depth><max_vel>0</max_vel></ode></contact>
+          <friction><ode/></friction>
+        </surface>
+      </collision>
+    </link>
+
+    <joint name="prop_2" type="revolute">
+      <parent>base_link</parent>
+      <child>rotor_2</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit><lower>-1e+16</lower><upper>1e+16</upper></limit>
+        <dynamics><spring_reference>0</spring_reference><spring_stiffness>0</spring_stiffness></dynamics>
+      </axis>
+    </joint>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         ROTOR 3 — back-right (-x,-y) CW — REV02 pose/inertia
+         ══════════════════════════════════════════════════════════════ -->
+    <link name="rotor_3">
+      <gravity>true</gravity>
+      <self_collide>false</self_collide>
+      <velocity_decay/>
+      <pose>-0.27133 -0.27051 0.05835 0 0 0</pose>
+      <inertial>
+        <pose>-3.618e-09 1.4718e-07 -0.0047651 0 0 0</pose>
+        <mass>0.035493</mass>
+        <inertia>
+          <ixx>0.00018909</ixx>
+          <ixy>0.00016735</ixy>
+          <ixz>-2.5801e-11</ixz>
+          <iyy>0.00015171</iyy>
+          <iyz>7.46e-11</iyz>
+          <izz>0.00034048</izz>
+        </inertia>
+      </inertial>
+      <visual name="rotor_3_visual">
+        <geometry>
+          <mesh><uri>model://my_drone/meshes/rotor_3.STL</uri></mesh>
+        </geometry>
+        <material><diffuse>0.79216 0.81961 0.93333 1</diffuse></material>
+      </visual>
+      <collision name="rotor_3_collision">
+        <geometry><box><size>0.254 0.017 0.00085</size></box></geometry>
+        <surface>
+          <contact><ode><min_depth>0.001</min_depth><max_vel>0</max_vel></ode></contact>
+          <friction><ode/></friction>
+        </surface>
+      </collision>
+    </link>
+
+    <joint name="prop_3" type="revolute">
+      <parent>base_link</parent>
+      <child>rotor_3</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit><lower>-1e+16</lower><upper>1e+16</upper></limit>
+        <dynamics><spring_reference>0</spring_reference><spring_stiffness>0</spring_stiffness></dynamics>
+      </axis>
+    </joint>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         ROTOR 4 — back-left (-x,+y) CCW — REV02 pose/inertia
+         ══════════════════════════════════════════════════════════════ -->
+    <link name="rotor_4">
+      <gravity>true</gravity>
+      <self_collide>false</self_collide>
+      <velocity_decay/>
+      <pose>-0.27133 0.27076 0.05835 0 0 0</pose>
+      <inertial>
+        <pose>1.62385819457711e-07 5.00348904530767e-08 -0.0047650536168156 0 0 0</pose>
+        <mass>0.0354930049132672</mass>
+        <inertia>
+          <ixx>0.000224118335127181</ixx>
+          <ixy>-0.000159587538903054</ixy>
+          <ixz>4.35659349271917e-11</ixz>
+          <iyy>0.000116686276046978</iyy>
+          <iyz>2.2419839318671e-11</iyz>
+          <izz>0.000340478082150536</izz>
+        </inertia>
+      </inertial>
+      <visual name="rotor_4_visual">
+        <geometry>
+          <mesh><uri>model://my_drone/meshes/rotor_4.STL</uri></mesh>
+        </geometry>
+        <material><diffuse>0.792156862745098 0.819607843137255 0.933333333333333 1</diffuse></material>
+      </visual>
+      <collision name="rotor_4_collision">
+        <geometry><box><size>0.254 0.017 0.00085</size></box></geometry>
+        <surface>
+          <contact><ode><min_depth>0.001</min_depth><max_vel>0</max_vel></ode></contact>
+          <friction><ode/></friction>
+        </surface>
+      </collision>
+    </link>
+
+    <joint name="prop_4" type="revolute">
+      <parent>base_link</parent>
+      <child>rotor_4</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit><lower>-1e+16</lower><upper>1e+16</upper></limit>
+        <dynamics><spring_reference>0</spring_reference><spring_stiffness>0</spring_stiffness></dynamics>
+      </axis>
+    </joint>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         MOTOR PLUGINS — validated constants from your real reference SDF
+         motorNumber assignment matches real CA_ROTOR0..3 params exactly:
+           0 = front-right (prop_2/rotor_2)   2 = front-left  (prop_1/rotor_1)
+           1 = back-left   (prop_4/rotor_4)   3 = back-right  (prop_3/rotor_3)
+         ══════════════════════════════════════════════════════════════ -->
+
+    <!-- Motor 0 — front-right, CCW -->
+    <plugin filename="gz-sim-multicopter-motor-model-system"
+            name="gz::sim::systems::MulticopterMotorModel">
+      <jointName>prop_2</jointName>
+      <linkName>rotor_2</linkName>
+      <turningDirection>ccw</turningDirection>
+      <timeConstantUp>0.0125</timeConstantUp>
+      <timeConstantDown>0.025</timeConstantDown>
+      <maxRotVelocity>930.0</maxRotVelocity>
+      <motorConstant>1.269e-05</motorConstant>
+      <momentConstant>0.019</momentConstant>
+      <commandSubTopic>command/motor_speed</commandSubTopic>
+      <motorNumber>0</motorNumber>
+      <rotorDragCoefficient>8.06428e-05</rotorDragCoefficient>
+      <rollingMomentCoefficient>1e-06</rollingMomentCoefficient>
+      <rotorVelocitySlowdownSim>10</rotorVelocitySlowdownSim>
+      <motorType>velocity</motorType>
+    </plugin>
+
+    <!-- Motor 1 — back-left, CCW -->
+    <plugin filename="gz-sim-multicopter-motor-model-system"
+            name="gz::sim::systems::MulticopterMotorModel">
+      <jointName>prop_4</jointName>
+      <linkName>rotor_4</linkName>
+      <turningDirection>ccw</turningDirection>
+      <timeConstantUp>0.0125</timeConstantUp>
+      <timeConstantDown>0.025</timeConstantDown>
+      <maxRotVelocity>930.0</maxRotVelocity>
+      <motorConstant>1.269e-05</motorConstant>
+      <momentConstant>0.019</momentConstant>
+      <commandSubTopic>command/motor_speed</commandSubTopic>
+      <motorNumber>1</motorNumber>
+      <rotorDragCoefficient>8.06428e-05</rotorDragCoefficient>
+      <rollingMomentCoefficient>1e-06</rollingMomentCoefficient>
+      <rotorVelocitySlowdownSim>10</rotorVelocitySlowdownSim>
+      <motorType>velocity</motorType>
+    </plugin>
+
+    <!-- Motor 2 — front-left, CW -->
+    <plugin filename="gz-sim-multicopter-motor-model-system"
+            name="gz::sim::systems::MulticopterMotorModel">
+      <jointName>prop_1</jointName>
+      <linkName>rotor_1</linkName>
+      <turningDirection>cw</turningDirection>
+      <timeConstantUp>0.0125</timeConstantUp>
+      <timeConstantDown>0.025</timeConstantDown>
+      <maxRotVelocity>930.0</maxRotVelocity>
+      <motorConstant>1.269e-05</motorConstant>
+      <momentConstant>0.019</momentConstant>
+      <commandSubTopic>command/motor_speed</commandSubTopic>
+      <motorNumber>2</motorNumber>
+      <rotorDragCoefficient>8.06428e-05</rotorDragCoefficient>
+      <rollingMomentCoefficient>1e-06</rollingMomentCoefficient>
+      <rotorVelocitySlowdownSim>10</rotorVelocitySlowdownSim>
+      <motorType>velocity</motorType>
+    </plugin>
+
+    <!-- Motor 3 — back-right, CW -->
+    <plugin filename="gz-sim-multicopter-motor-model-system"
+            name="gz::sim::systems::MulticopterMotorModel">
+      <jointName>prop_3</jointName>
+      <linkName>rotor_3</linkName>
+      <turningDirection>cw</turningDirection>
+      <timeConstantUp>0.0125</timeConstantUp>
+      <timeConstantDown>0.025</timeConstantDown>
+      <maxRotVelocity>930.0</maxRotVelocity>
+      <motorConstant>1.269e-05</motorConstant>
+      <momentConstant>0.019</momentConstant>
+      <commandSubTopic>command/motor_speed</commandSubTopic>
+      <motorNumber>3</motorNumber>
+      <rotorDragCoefficient>8.06428e-05</rotorDragCoefficient>
+      <rollingMomentCoefficient>1e-06</rollingMomentCoefficient>
+      <rotorVelocitySlowdownSim>10</rotorVelocitySlowdownSim>
+      <motorType>velocity</motorType>
+    </plugin>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         IMU LINK (Pixhawk 6C mount) — REV02 pose/inertia.
+         IMU, barometer, magnetometer sensors attached here since this is
+         the real physical FC/IMU board location, not base_link origin.
+         gz_frame_id set to imu_link — verify this against your PX4-gz
+         bridge config, which may currently assume base_link.
+         ══════════════════════════════════════════════════════════════ -->
+    <link name="imu_link">
+      <pose relative_to="base_link">0.027618 0 0.09424 0 0 0</pose>
+      <inertial>
+        <pose>-0.026713 -0.00018482 -0.0069632 0 0 0</pose>
+        <mass>0.025336</mass>
+        <inertia>
+          <ixx>4.355e-06</ixx>
+          <ixy>-2.6662e-08</ixy>
+          <ixz>-1.5976e-07</ixz>
+          <iyy>1.4623e-05</iyy>
+          <iyz>-4.6497e-09</iyz>
+          <izz>1.8877e-05</izz>
+        </inertia>
+      </inertial>
+      <visual name="imu_link_visual">
+        <geometry>
+          <mesh><uri>model://my_drone/meshes/imu_link.STL</uri></mesh>
+        </geometry>
+        <material><diffuse>0.79216 0.81961 0.93333 1</diffuse></material>
+      </visual>
+      <collision name="imu_link_collision">
+        <geometry>
+          <mesh><uri>model://my_drone/meshes/imu_link.STL</uri></mesh>
+        </geometry>
+      </collision>
+    </link>
+
+    <joint name="imu_joint" type="fixed">
+      <parent>base_link</parent>
+      <child>imu_link</child>
+    </joint>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         HEIGHT LINK (Benewake TFmini Plus) — REV02 pose/inertia
+         ══════════════════════════════════════════════════════════════ -->
+    <link name="height_link">
+      <pose relative_to="base_link">0.12185 0 -0.02996 0 1.5708 0</pose>
+      <inertial>
+        <pose>3.1297e-05 2.9779e-09 0.010395 0 0 0</pose>
+        <mass>0.013235</mass>
+        <inertia>
+          <ixx>1.6618e-06</ixx>
+          <ixy>-5.058e-09</ixy>
+          <ixz>-4.5619e-14</ixz>
+          <iyy>7.7935e-07</iyy>
+          <iyz>4.6178e-14</iyz>
+          <izz>1.6046e-06</izz>
+        </inertia>
+      </inertial>
+      <visual name="height_link_visual">
+        <pose>0 0 0 0 1.5708 0</pose>
+        <geometry>
+          <mesh><uri>model://my_drone/meshes/height_link.STL</uri></mesh>
+        </geometry>
+        <material><diffuse>0.5098 0.023529 0.53333 1</diffuse></material>
+      </visual>
+      <collision name="height_link_collision">
+        <pose>0 0 0 0 1.5708 0</pose>
+        <geometry>
+          <mesh><uri>model://my_drone/meshes/height_link.STL</uri></mesh>
+        </geometry>
+      </collision>
+
+      <sensor name="lidar_1d" type="gpu_lidar">
+        <pose>0 0 0 0 0 0</pose>
+        <gz_frame_id>height_link</gz_frame_id>
+        <always_on>1</always_on>
+        <update_rate>100</update_rate>
+        <topic>/drone/lidar_1d/range</topic>
+        <lidar>
+          <scan>
+            <horizontal><samples>1</samples><resolution>1</resolution><min_angle>0</min_angle><max_angle>0</max_angle></horizontal>
+            <vertical><samples>1</samples><resolution>1</resolution><min_angle>0</min_angle><max_angle>0</max_angle></vertical>
+          </scan>
+          <range><min>0.10</min><max>12.0</max><resolution>0.01</resolution></range>
+          <noise><type>gaussian</type><mean>0.0</mean><stddev>0.02</stddev></noise>
+        </lidar>
+      </sensor>
+    </link>
+
+    <joint name="height_joint" type="fixed">
+      <parent>base_link</parent>
+      <child>height_link</child>
+    </joint>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         CAMERA LINK — REV02 pose, massless reference frame
+         ══════════════════════════════════════════════════════════════ -->
+    <link name="camera_link">
+      <pose relative_to="base_link">0.15365 0.0019585 -0.056061 0 1.5708 0</pose>
+      <inertial>
+        <mass>0.001</mass>
+        <inertia><ixx>1e-9</ixx><ixy>0</ixy><ixz>0</ixz><iyy>1e-9</iyy><iyz>0</iyz><izz>1e-9</izz></inertia>
+      </inertial>
+      <visual name="camera_link_visual">
+        <geometry>
+          <mesh><uri>model://my_drone/meshes/camera_link.STL</uri></mesh>
+        </geometry>
+        <material><diffuse>1 1 1 1</diffuse></material>
+      </visual>
+    </link>
+
+    <joint name="camera_joint" type="fixed">
+      <parent>base_link</parent>
+      <child>camera_link</child>
+    </joint>
+
+    <!-- OAK-D Pro internal IMU (BNO085) — relative offset from your real
+         reference SDF, unchanged by mount position since it's fixed
+         internal board geometry, now hung off the real camera_link mount. -->
+    <link name="oak_imu_frame">
+      <pose relative_to="camera_link">-0.008 -0.037945 -0.00079 0 0 0</pose>
+      <inertial>
+        <mass>0.001</mass>
+        <inertia><ixx>1e-9</ixx><ixy>0</ixy><ixz>0</ixz><iyy>1e-9</iyy><iyz>0</iyz><izz>1e-9</izz></inertia>
+      </inertial>
+      <sensor name="oak_imu" type="imu">
+        <always_on>1</always_on>
+        <update_rate>57.2</update_rate>
+        <topic>/oak/imu/data</topic>
+        <gz_frame_id>oak_imu_frame</gz_frame_id>
+        <imu>
+          <angular_velocity>
+            <x><noise type="gaussian"><mean>0</mean><stddev>0.004413390551453016</stddev></noise></x>
+            <y><noise type="gaussian"><mean>0</mean><stddev>0.004413390551453016</stddev></noise></y>
+            <z><noise type="gaussian"><mean>0</mean><stddev>0.004413390551453016</stddev></noise></z>
+          </angular_velocity>
+          <linear_acceleration>
+            <x><noise type="gaussian"><mean>0</mean><stddev>0.029661823950332205</stddev></noise></x>
+            <y><noise type="gaussian"><mean>0</mean><stddev>0.029661823950332205</stddev></noise></y>
+            <z><noise type="gaussian"><mean>0</mean><stddev>0.029661823950332205</stddev></noise></z>
+          </linear_acceleration>
+        </imu>
+      </sensor>
+    </link>
+    <joint name="oak_imu_joint" type="fixed">
+      <parent>camera_link</parent>
+      <child>oak_imu_frame</child>
+    </joint>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         RGB LINK (IMX378) — REV02 pose/inertia
+         ══════════════════════════════════════════════════════════════ -->
+    <link name="rgb_link">
+      <pose relative_to="camera_link">-0.00115 -0.0019585 -0.006564 0 0 0</pose>
+      <inertial>
+        <pose>-0.0082122 -0.00016644 0.0044068 0 0 0</pose>
+        <mass>0.035056</mass>
+        <inertia>
+          <ixx>2.6485e-05</ixx>
+          <ixy>4.5494e-10</ixy>
+          <ixz>4.3927e-09</ixz>
+          <iyy>2.8258e-06</iyy>
+          <iyz>-7.971e-08</iyz>
+          <izz>2.4594e-05</izz>
+        </inertia>
+      </inertial>
+      <visual name="rgb_link_visual">
+        <geometry>
+          <mesh><uri>model://my_drone/meshes/rgb_link.STL</uri></mesh>
+        </geometry>
+        <material><diffuse>0.79216 0.81961 0.93333 1</diffuse></material>
+      </visual>
+      <collision name="rgb_link_collision">
+        <geometry>
+          <mesh><uri>model://my_drone/meshes/rgb_link.STL</uri></mesh>
+        </geometry>
+      </collision>
+
+      <sensor name="oak_rgb_camera" type="camera">
+        <pose>0 0 0 0 0 0</pose>
+        <always_on>1</always_on>
+        <update_rate>30</update_rate>
+        <topic>/oak/rgb/image_raw</topic>
+        <gz_frame_id>oak_rgb_camera_optical_frame</gz_frame_id>
+        <visualize>true</visualize>
+        <camera name="oak_rgb_camera">
+          <optical_frame_id>oak_rgb_camera_optical_frame</optical_frame_id>
+          <camera_info_topic>/oak/rgb/camera_info</camera_info_topic>
+          <horizontal_fov>1.1519</horizontal_fov>
+          <image>
+            <width>1920</width>
+            <height>1080</height>
+            <format>R8G8B8</format>
+          </image>
+          <clip><near>0.1</near><far>100</far></clip>
+          <noise>
+            <type>gaussian</type>
+            <mean>0.0</mean>
+            <stddev>0.005</stddev>
+          </noise>
+        </camera>
+      </sensor>
+    </link>
+
+    <joint name="rgb_joint" type="fixed">
+      <parent>camera_link</parent>
+      <child>rgb_link</child>
+    </joint>
+
+    <!-- RGB Optical Frame (REP-103 convention) -->
+    <link name="oak_rgb_camera_optical_frame">
+      <pose relative_to="rgb_link">0 0 0 -1.5707963 0 -1.5707963</pose>
+      <inertial>
+        <mass>0.001</mass>
+        <inertia><ixx>1e-9</ixx><ixy>0</ixy><ixz>0</ixz><iyy>1e-9</iyy><iyz>0</iyz><izz>1e-9</izz></inertia>
+      </inertial>
+    </link>
+
+    <joint name="oak_rgb_camera_optical_joint" type="fixed">
+      <parent>rgb_link</parent>
+      <child>oak_rgb_camera_optical_frame</child>
+    </joint>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         MONO RIGHT LINK — REV02 pose/inertia
+         ══════════════════════════════════════════════════════════════ -->
+    <link name="mono_right_link">
+      <pose relative_to="camera_link">-0.00303 0.035542 -0.0065787 0 0 0</pose>
+      <inertial>
+        <pose>-0.0063322 -0.037666 0.0044215 0 0 0</pose>
+        <mass>0.035056</mass>
+        <inertia>
+          <ixx>2.6485e-05</ixx>
+          <ixy>4.5494e-10</ixy>
+          <ixz>4.3927e-09</ixz>
+          <iyy>2.8258e-06</iyy>
+          <iyz>-7.971e-08</iyz>
+          <izz>2.4594e-05</izz>
+        </inertia>
+      </inertial>
+      <visual name="mono_right_link_visual">
+        <geometry>
+          <mesh><uri>model://my_drone/meshes/mono_right_link.STL</uri></mesh>
+        </geometry>
+        <material><diffuse>0.79216 0.81961 0.93333 1</diffuse></material>
+      </visual>
+      <collision name="mono_right_link_collision">
+        <geometry>
+          <mesh><uri>model://my_drone/meshes/mono_right_link.STL</uri></mesh>
+        </geometry>
+      </collision>
+
+      <sensor name="oak_right_camera" type="camera">
+        <pose>0 0 0 0 0 0</pose>
+        <always_on>1</always_on>
+        <update_rate>30</update_rate>
+        <topic>/oak/right/image_raw</topic>
+        <gz_frame_id>oak_right_camera_optical_frame</gz_frame_id>
+        <visualize>false</visualize>
+        <camera name="oak_right_camera">
+          <optical_frame_id>oak_right_camera_optical_frame</optical_frame_id>
+          <camera_info_topic>/oak/right/camera_info</camera_info_topic>
+          <horizontal_fov>1.3564</horizontal_fov>
+          <image>
+            <width>640</width>
+            <height>400</height>
+            <format>L8</format>
+          </image>
+          <clip><near>0.05</near><far>50</far></clip>
+          <lens>
+            <intrinsics>
+              <fx>398.5590700539458</fx>
+              <fy>398.25541793109494</fy>
+              <cx>318.5085654049246</cx>
+              <cy>190.40568462153493</cy>
+              <s>0</s>
+            </intrinsics>
+          </lens>
+          <distortion>
+            <k1>0.017474251718952536</k1>
+            <k2>-0.03686190622241157</k2>
+            <k3>0.0</k3>
+            <p1>0.0004172692927311086</p1>
+            <p2>0.00013416154409860094</p2>
+            <center>0.5 0.5</center>
+          </distortion>
+          <noise>
+            <type>gaussian</type>
+            <mean>0.0</mean>
+            <stddev>0.007</stddev>
+          </noise>
+        </camera>
+      </sensor>
+    </link>
+
+    <joint name="mono_right_joint" type="fixed">
+      <parent>camera_link</parent>
+      <child>mono_right_link</child>
+    </joint>
+
+    <!-- Mono Right Optical Frame (REP-103 convention) -->
+    <link name="oak_right_camera_optical_frame">
+      <pose relative_to="mono_right_link">0 0 0 -1.5707963 0 -1.5707963</pose>
+      <inertial>
+        <mass>0.001</mass>
+        <inertia><ixx>1e-9</ixx><ixy>0</ixy><ixz>0</ixz><iyy>1e-9</iyy><iyz>0</iyz><izz>1e-9</izz></inertia>
+      </inertial>
+    </link>
+
+    <joint name="oak_right_camera_optical_joint" type="fixed">
+      <parent>mono_right_link</parent>
+      <child>oak_right_camera_optical_frame</child>
+    </joint>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         MONO LEFT LINK — REV02 pose/inertia
+         ══════════════════════════════════════════════════════════════ -->
+    <link name="mono_left_link">
+      <pose relative_to="camera_link">-0.00303 -0.039458 -0.006564 0 0 0</pose>
+      <inertial>
+        <pose>-0.0063321795654051 0.0373335288139523 0.00440686240808857 0 0 0</pose>
+        <mass>0.0350559969605206</mass>
+        <inertia>
+          <ixx>2.6484747809975e-05</ixx>
+          <ixy>4.5493623446563e-10</ixy>
+          <ixz>4.39273434042825e-09</ixz>
+          <iyy>2.82576015936734e-06</iyy>
+          <iyz>-7.97102214923497e-08</iyz>
+          <izz>2.45943694927088e-05</izz>
+        </inertia>
+      </inertial>
+      <visual name="mono_left_link_visual">
+        <geometry>
+          <mesh><uri>model://my_drone/meshes/mono_left_link.STL</uri></mesh>
+        </geometry>
+        <material><diffuse>0.792156862745098 0.819607843137255 0.933333333333333 1</diffuse></material>
+      </visual>
+      <collision name="mono_left_link_collision">
+        <geometry>
+          <mesh><uri>model://my_drone/meshes/mono_left_link.STL</uri></mesh>
+        </geometry>
+      </collision>
+
+      <sensor name="oak_left_camera" type="camera">
+        <pose>0 0 0 0 0 0</pose>
+        <always_on>1</always_on>
+        <update_rate>30</update_rate>
+        <topic>/oak/left/image_raw</topic>
+        <gz_frame_id>oak_left_camera_optical_frame</gz_frame_id>
+        <visualize>false</visualize>
+        <camera name="oak_left_camera">
+          <optical_frame_id>oak_left_camera_optical_frame</optical_frame_id>
+          <camera_info_topic>/oak/left/camera_info</camera_info_topic>
+          <horizontal_fov>1.3564</horizontal_fov>
+          <image>
+            <width>640</width>
+            <height>400</height>
+            <format>L8</format>
+          </image>
+          <clip><near>0.05</near><far>50</far></clip>
+          <lens>
+            <intrinsics>
+              <fx>397.1142234282478</fx>
+              <fy>396.85339468857524</fy>
+              <cx>306.83990821899863</cx>
+              <cy>195.4476448524984</cy>
+              <s>0</s>
+            </intrinsics>
+          </lens>
+          <distortion>
+            <k1>0.014949546667775713</k1>
+            <k2>-0.005237920718265372</k2>
+            <k3>0.0</k3>
+            <p1>0.00020718812965504107</p1>
+            <p2>-0.0018191187499256775</p2>
+            <center>0.5 0.5</center>
+          </distortion>
+          <noise>
+            <type>gaussian</type>
+            <mean>0.0</mean>
+            <stddev>0.007</stddev>
+          </noise>
+        </camera>
+      </sensor>
+    </link>
+
+    <joint name="mono_left_joint" type="fixed">
+      <parent>camera_link</parent>
+      <child>mono_left_link</child>
+    </joint>
+
+    <!-- Mono Left Optical Frame (REP-103 convention) -->
+    <link name="oak_left_camera_optical_frame">
+      <pose relative_to="mono_left_link">0 0 0 -1.5707963 0 -1.5707963</pose>
+      <inertial>
+        <mass>0.001</mass>
+        <inertia><ixx>1e-9</ixx><ixy>0</ixy><ixz>0</ixz><iyy>1e-9</iyy><iyz>0</iyz><izz>1e-9</izz></inertia>
+      </inertial>
+    </link>
+
+    <joint name="oak_left_camera_optical_joint" type="fixed">
+      <parent>mono_left_link</parent>
+      <child>oak_left_camera_optical_frame</child>
+    </joint>
+
+  </model>
+</sdf>

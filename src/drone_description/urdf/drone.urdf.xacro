@@ -1,0 +1,639 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  drone.urdf.xacro
+  ══════════════════════════════════════════════════════════════════════════════
+  REV02 — converted directly from the SolidWorks URDF exporter output
+  (Master_Assembly_REV02_SLDASM.urdf). All inertial values (mass, CoM,
+  inertia tensor) and all joint origins/axes are taken VERBATIM from that
+  export. Nothing has been rounded, approximated, or renamed.
+
+  This revision differs structurally from the previous drone.urdf.xacro:
+    - Rotors are named rotor_1..rotor_4 / prop_1..prop_4 (SolidWorks naming),
+      NOT rotor_0..rotor_3 / rotor_N_joint (old PX4-numbering convention).
+      Spin axis direction is per-joint, exactly as exported:
+        prop_1  axis "0 0 -1"      prop_2  axis "0 0 1"
+        prop_3  axis "0 0 1"       prop_4  axis "0 0 -1"
+    - Camera and IMU are now modeled as native links in this assembly
+      (imu_link, camera_link, rgb_link, mono_right_link, mono_left_link)
+      rather than pulled in via oakd_pro.urdf.xacro. That include is NOT
+      referenced here — decide whether to keep this inline version or
+      switch back to the module include before using this file.
+    - height_link replaces the previous lidar_1d rangefinder xacro macro.
+    - No collision cylinders, joint dynamics/limits, or <gazebo> material
+      tags are present — the SolidWorks export doesn't define them and none
+      have been added, to avoid introducing values not present in source.
+
+  Only non-numeric change made during conversion: mesh package path
+  rewritten from the exporter's literal
+    package://Master Assembly_REV02.SLDASM/meshes/<name>.STL
+  (not a valid ROS2 package reference) to
+    package://drone_description/meshes/<name>.STL
+  ══════════════════════════════════════════════════════════════════════════════
+-->
+<robot name="Drone_Full_Assembly" xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:include filename="$(find drone_description)/urdf/drone_gazebo.xacro" />
+
+  <!-- ══════════════════════════════════════════════════════════════
+       PROPERTIES — BASE LINK
+       ══════════════════════════════════════════════════════════════ -->
+  <xacro:property name="base_mass" value="2.9001" />
+  <xacro:property name="base_cx"   value="8.4077E-05" />
+  <xacro:property name="base_cy"   value="0.0071363" />
+  <xacro:property name="base_cz"   value="0.0032466" />
+  <xacro:property name="base_ixx"  value="0.0037726" />
+  <xacro:property name="base_ixy"  value="6.1155E-08" />
+  <xacro:property name="base_ixz"  value="-2.3148E-08" />
+  <xacro:property name="base_iyy"  value="0.004627" />
+  <xacro:property name="base_iyz"  value="-2.0369E-07" />
+  <xacro:property name="base_izz"  value="0.0016329" />
+
+  <!-- ══════════════════════════════════════════════════════════════
+       PROPERTIES — ROTOR 1   joint prop_1, origin (0.27145, 0.27063, 0.05835), axis -z
+       ══════════════════════════════════════════════════════════════ -->
+  <xacro:property name="rotor_1_mass" value="0.035493" />
+  <xacro:property name="rotor_1_cx"   value="-8.536E-08" />
+  <xacro:property name="rotor_1_cy"   value="-6.6348E-08" />
+  <xacro:property name="rotor_1_cz"   value="-0.0047651" />
+  <xacro:property name="rotor_1_ixx"  value="0.0002626" />
+  <xacro:property name="rotor_1_ixy"  value="0.0001409" />
+  <xacro:property name="rotor_1_ixz"  value="9.4387E-12" />
+  <xacro:property name="rotor_1_iyy"  value="7.8206E-05" />
+  <xacro:property name="rotor_1_iyz"  value="-7.9768E-11" />
+  <xacro:property name="rotor_1_izz"  value="0.00034048" />
+
+  <!-- ══════════════════════════════════════════════════════════════
+       PROPERTIES — ROTOR 2   joint prop_2, origin (0.27145, -0.27063, 0.05835), axis +z
+       ══════════════════════════════════════════════════════════════ -->
+  <xacro:property name="rotor_2_mass" value="0.035493" />
+  <xacro:property name="rotor_2_cx"   value="-1.162E-07" />
+  <xacro:property name="rotor_2_cy"   value="3.4698E-08" />
+  <xacro:property name="rotor_2_cz"   value="-0.0047651" />
+  <xacro:property name="rotor_2_ixx"  value="0.00021554" />
+  <xacro:property name="rotor_2_ixy"  value="-0.00016222" />
+  <xacro:property name="rotor_2_ixz"  value="-4.6E-11" />
+  <xacro:property name="rotor_2_iyy"  value="0.00012527" />
+  <xacro:property name="rotor_2_iyz"  value="-2.4414E-11" />
+  <xacro:property name="rotor_2_izz"  value="0.00034048" />
+
+  <!-- ══════════════════════════════════════════════════════════════
+       PROPERTIES — ROTOR 3   joint prop_3, origin (-0.27133, -0.27051, 0.05835), axis +z
+       ══════════════════════════════════════════════════════════════ -->
+  <xacro:property name="rotor_3_mass" value="0.035493" />
+  <xacro:property name="rotor_3_cx"   value="-3.618E-09" />
+  <xacro:property name="rotor_3_cy"   value="1.4718E-07" />
+  <xacro:property name="rotor_3_cz"   value="-0.0047651" />
+  <xacro:property name="rotor_3_ixx"  value="0.00018909" />
+  <xacro:property name="rotor_3_ixy"  value="0.00016735" />
+  <xacro:property name="rotor_3_ixz"  value="-2.5801E-11" />
+  <xacro:property name="rotor_3_iyy"  value="0.00015171" />
+  <xacro:property name="rotor_3_iyz"  value="7.46E-11" />
+  <xacro:property name="rotor_3_izz"  value="0.00034048" />
+
+  <!-- ══════════════════════════════════════════════════════════════
+       PROPERTIES — ROTOR 4   joint prop_4, origin (-0.27133, 0.27076, 0.05835), axis -z
+       ══════════════════════════════════════════════════════════════ -->
+  <xacro:property name="rotor_4_mass" value="0.0354930049132672" />
+  <xacro:property name="rotor_4_cx"   value="1.62385819457711E-07" />
+  <xacro:property name="rotor_4_cy"   value="5.00348904530767E-08" />
+  <xacro:property name="rotor_4_cz"   value="-0.0047650536168156" />
+  <xacro:property name="rotor_4_ixx"  value="0.000224118335127181" />
+  <xacro:property name="rotor_4_ixy"  value="-0.000159587538903054" />
+  <xacro:property name="rotor_4_ixz"  value="4.35659349271917E-11" />
+  <xacro:property name="rotor_4_iyy"  value="0.000116686276046978" />
+  <xacro:property name="rotor_4_iyz"  value="2.2419839318671E-11" />
+  <xacro:property name="rotor_4_izz"  value="0.000340478082150536" />
+
+  <!-- ══════════════════════════════════════════════════════════════
+       PROPERTIES — IMU LINK   joint imu_joint (fixed), origin (0.027618, 0, 0.09424)
+       ══════════════════════════════════════════════════════════════ -->
+  <xacro:property name="imu_mass" value="0.025336" />
+  <xacro:property name="imu_cx"   value="-0.026713" />
+  <xacro:property name="imu_cy"   value="-0.00018482" />
+  <xacro:property name="imu_cz"   value="-0.0069632" />
+  <xacro:property name="imu_ixx"  value="4.355E-06" />
+  <xacro:property name="imu_ixy"  value="-2.6662E-08" />
+  <xacro:property name="imu_ixz"  value="-1.5976E-07" />
+  <xacro:property name="imu_iyy"  value="1.4623E-05" />
+  <xacro:property name="imu_iyz"  value="-4.6497E-09" />
+  <xacro:property name="imu_izz"  value="1.8877E-05" />
+
+  <!-- ══════════════════════════════════════════════════════════════
+       PROPERTIES — HEIGHT LINK (rangefinder)   joint height_joint (fixed),
+       origin (0.12185, 0, -0.02996), rpy (3.1416, 0, 0)
+       ══════════════════════════════════════════════════════════════ -->
+  <xacro:property name="height_mass" value="0.013235" />
+  <xacro:property name="height_cx"   value="3.1297E-05" />
+  <xacro:property name="height_cy"   value="2.9779E-09" />
+  <xacro:property name="height_cz"   value="0.010395" />
+  <xacro:property name="height_ixx"  value="1.6618E-06" />
+  <xacro:property name="height_ixy"  value="-5.058E-09" />
+  <xacro:property name="height_ixz"  value="-4.5619E-14" />
+  <xacro:property name="height_iyy"  value="7.7935E-07" />
+  <xacro:property name="height_iyz"  value="4.6178E-14" />
+  <xacro:property name="height_izz"  value="1.6046E-06" />
+
+  <!-- ══════════════════════════════════════════════════════════════
+       PROPERTIES — RGB LINK   joint rgb_joint (fixed), parent camera_link,
+       origin (-0.00115, -0.0019585, -0.006564)
+       ══════════════════════════════════════════════════════════════ -->
+  <xacro:property name="rgb_mass" value="0.035056" />
+  <xacro:property name="rgb_cx"   value="-0.0082122" />
+  <xacro:property name="rgb_cy"   value="-0.00016644" />
+  <xacro:property name="rgb_cz"   value="0.0044068" />
+  <xacro:property name="rgb_ixx"  value="2.6485E-05" />
+  <xacro:property name="rgb_ixy"  value="4.5494E-10" />
+  <xacro:property name="rgb_ixz"  value="4.3927E-09" />
+  <xacro:property name="rgb_iyy"  value="2.8258E-06" />
+  <xacro:property name="rgb_iyz"  value="-7.971E-08" />
+  <xacro:property name="rgb_izz"  value="2.4594E-05" />
+
+  <!-- ══════════════════════════════════════════════════════════════
+       PROPERTIES — MONO RIGHT LINK   joint mono_right_joint (fixed), parent camera_link,
+       origin (-0.00303, 0.035542, -0.0065787)
+       ══════════════════════════════════════════════════════════════ -->
+  <xacro:property name="mono_right_mass" value="0.035056" />
+  <xacro:property name="mono_right_cx"   value="-0.0063322" />
+  <xacro:property name="mono_right_cy"   value="-0.037666" />
+  <xacro:property name="mono_right_cz"   value="0.0044215" />
+  <xacro:property name="mono_right_ixx"  value="2.6485E-05" />
+  <xacro:property name="mono_right_ixy"  value="4.5494E-10" />
+  <xacro:property name="mono_right_ixz"  value="4.3927E-09" />
+  <xacro:property name="mono_right_iyy"  value="2.8258E-06" />
+  <xacro:property name="mono_right_iyz"  value="-7.971E-08" />
+  <xacro:property name="mono_right_izz"  value="2.4594E-05" />
+
+  <!-- ══════════════════════════════════════════════════════════════
+       PROPERTIES — MONO LEFT LINK   joint mono_left_joint (fixed), parent camera_link,
+       origin (-0.00303, -0.039458, -0.006564)
+       ══════════════════════════════════════════════════════════════ -->
+  <xacro:property name="mono_left_mass" value="0.0350559969605206" />
+  <xacro:property name="mono_left_cx"   value="-0.0063321795654051" />
+  <xacro:property name="mono_left_cy"   value="0.0373335288139523" />
+  <xacro:property name="mono_left_cz"   value="0.00440686240808857" />
+  <xacro:property name="mono_left_ixx"  value="2.6484747809975E-05" />
+  <xacro:property name="mono_left_ixy"  value="4.5493623446563E-10" />
+  <xacro:property name="mono_left_ixz"  value="4.39273434042825E-09" />
+  <xacro:property name="mono_left_iyy"  value="2.82576015936734E-06" />
+  <xacro:property name="mono_left_iyz"  value="-7.97102214923497E-08" />
+  <xacro:property name="mono_left_izz"  value="2.45943694927088E-05" />
+
+  <!-- ══════════════════════════════════════════════════════════════
+       BASE LINK
+       ══════════════════════════════════════════════════════════════ -->
+  <link name="base_link">
+    <inertial>
+      <origin xyz="${base_cx} ${base_cy} ${base_cz}" rpy="0 0 0"/>
+      <mass value="${base_mass}"/>
+      <inertia
+        ixx="${base_ixx}" ixy="${base_ixy}" ixz="${base_ixz}"
+        iyy="${base_iyy}" iyz="${base_iyz}"
+        izz="${base_izz}"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://drone_description/meshes_1/base_link.STL"/>
+      </geometry>
+      <material name="">
+        <color rgba="0.79216 0.81961 0.93333 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://drone_description/meshes_1/base_link.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       ROTOR 1   joint prop_1, axis -z
+       ══════════════════════════════════════════════════════════════ -->
+  <link name="rotor_1">
+    <inertial>
+      <origin xyz="${rotor_1_cx} ${rotor_1_cy} ${rotor_1_cz}" rpy="0 0 0"/>
+      <mass value="${rotor_1_mass}"/>
+      <inertia
+        ixx="${rotor_1_ixx}" ixy="${rotor_1_ixy}" ixz="${rotor_1_ixz}"
+        iyy="${rotor_1_iyy}" iyz="${rotor_1_iyz}"
+        izz="${rotor_1_izz}"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://drone_description/meshes_1/rotor_1.STL"/>
+      </geometry>
+      <material name="">
+        <color rgba="0.79216 0.81961 0.93333 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://drone_description/meshes_1/rotor_1.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="prop_1" type="continuous">
+    <origin xyz="0.27145 0.27063 0.05835" rpy="0 0 0"/>
+    <parent link="base_link"/>
+    <child  link="rotor_1"/>
+    <axis xyz="0 0 -1"/>
+  </joint>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       ROTOR 2   joint prop_2, axis +z
+       ══════════════════════════════════════════════════════════════ -->
+  <link name="rotor_2">
+    <inertial>
+      <origin xyz="${rotor_2_cx} ${rotor_2_cy} ${rotor_2_cz}" rpy="0 0 0"/>
+      <mass value="${rotor_2_mass}"/>
+      <inertia
+        ixx="${rotor_2_ixx}" ixy="${rotor_2_ixy}" ixz="${rotor_2_ixz}"
+        iyy="${rotor_2_iyy}" iyz="${rotor_2_iyz}"
+        izz="${rotor_2_izz}"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://drone_description/meshes_1/rotor_2.STL"/>
+      </geometry>
+      <material name="">
+        <color rgba="0.79216 0.81961 0.93333 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://drone_description/meshes_1/rotor_2.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="prop_2" type="continuous">
+    <origin xyz="0.27145 -0.27063 0.05835" rpy="0 0 0"/>
+    <parent link="base_link"/>
+    <child  link="rotor_2"/>
+    <axis xyz="0 0 1"/>
+  </joint>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       ROTOR 3   joint prop_3, axis +z
+       ══════════════════════════════════════════════════════════════ -->
+  <link name="rotor_3">
+    <inertial>
+      <origin xyz="${rotor_3_cx} ${rotor_3_cy} ${rotor_3_cz}" rpy="0 0 0"/>
+      <mass value="${rotor_3_mass}"/>
+      <inertia
+        ixx="${rotor_3_ixx}" ixy="${rotor_3_ixy}" ixz="${rotor_3_ixz}"
+        iyy="${rotor_3_iyy}" iyz="${rotor_3_iyz}"
+        izz="${rotor_3_izz}"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://drone_description/meshes_1/rotor_3.STL"/>
+      </geometry>
+      <material name="">
+        <color rgba="0.79216 0.81961 0.93333 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://drone_description/meshes_1/rotor_3.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="prop_3" type="continuous">
+    <origin xyz="-0.27133 -0.27051 0.05835" rpy="0 0 0"/>
+    <parent link="base_link"/>
+    <child  link="rotor_3"/>
+    <axis xyz="0 0 1"/>
+  </joint>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       ROTOR 4   joint prop_4, axis -z
+       ══════════════════════════════════════════════════════════════ -->
+  <link name="rotor_4">
+    <inertial>
+      <origin xyz="${rotor_4_cx} ${rotor_4_cy} ${rotor_4_cz}" rpy="0 0 0"/>
+      <mass value="${rotor_4_mass}"/>
+      <inertia
+        ixx="${rotor_4_ixx}" ixy="${rotor_4_ixy}" ixz="${rotor_4_ixz}"
+        iyy="${rotor_4_iyy}" iyz="${rotor_4_iyz}"
+        izz="${rotor_4_izz}"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://drone_description/meshes_1/rotor_4.STL"/>
+      </geometry>
+      <material name="">
+        <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://drone_description/meshes_1/rotor_4.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="prop_4" type="continuous">
+    <origin xyz="-0.27133 0.27076 0.05835" rpy="0 0 0"/>
+    <parent link="base_link"/>
+    <child  link="rotor_4"/>
+    <axis xyz="0 0 -1"/>
+  </joint>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       IMU LINK   joint imu_joint (fixed)
+       ══════════════════════════════════════════════════════════════ -->
+  <link name="imu_link">
+    <inertial>
+      <origin xyz="${imu_cx} ${imu_cy} ${imu_cz}" rpy="0 0 0"/>
+      <mass value="${imu_mass}"/>
+      <inertia
+        ixx="${imu_ixx}" ixy="${imu_ixy}" ixz="${imu_ixz}"
+        iyy="${imu_iyy}" iyz="${imu_iyz}"
+        izz="${imu_izz}"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://drone_description/meshes_1/imu_link.STL"/>
+      </geometry>
+      <material name="">
+        <color rgba="0.79216 0.81961 0.93333 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://drone_description/meshes_1/imu_link.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="imu_joint" type="fixed">
+    <origin xyz="0.027618 0 0.09424" rpy="0 0 0"/>
+    <parent link="base_link"/>
+    <child  link="imu_link"/>
+    <axis xyz="0 0 0"/>
+  </joint>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       HEIGHT LINK (rangefinder)   joint height_joint (fixed)
+       ══════════════════════════════════════════════════════════════ -->
+  <link name="height_link">
+    <inertial>
+      <origin xyz="${height_cx} ${height_cy} ${height_cz}" rpy="0 0 0"/>
+      <mass value="${height_mass}"/>
+      <inertia
+        ixx="${height_ixx}" ixy="${height_ixy}" ixz="${height_ixz}"
+        iyy="${height_iyy}" iyz="${height_iyz}"
+        izz="${height_izz}"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://drone_description/meshes_1/height_link.STL"/>
+      </geometry>
+      <material name="">
+        <color rgba="0.5098 0.023529 0.53333 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://drone_description/meshes_1/height_link.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="height_joint" type="fixed">
+    <origin xyz="0.12185 0 -0.02996" rpy="3.1416 0 0"/>
+    <parent link="base_link"/>
+    <child  link="height_link"/>
+    <axis xyz="0 0 0"/>
+  </joint>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       CAMERA LINK   joint camera_joint (fixed) — massless reference frame,
+       exactly as exported (mass and inertia are all zero in source)
+       ══════════════════════════════════════════════════════════════ -->
+  <link name="camera_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0"/>
+      <inertia ixx="0" ixy="0" ixz="0" iyy="0" iyz="0" izz="0"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://drone_description/meshes_1/camera_link.STL"/>
+      </geometry>
+      <material name="">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://drone_description/meshes_1/camera_link.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="camera_joint" type="fixed">
+    <origin xyz="0.15365 0.0019585 -0.056061" rpy="0 1.5708 0"/>
+    <parent link="base_link"/>
+    <child  link="camera_link"/>
+    <axis xyz="0 0 0"/>
+  </joint>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       RGB LINK   joint rgb_joint (fixed), parent camera_link
+       ══════════════════════════════════════════════════════════════ -->
+  <link name="rgb_link">
+    <inertial>
+      <origin xyz="${rgb_cx} ${rgb_cy} ${rgb_cz}" rpy="0 0 0"/>
+      <mass value="${rgb_mass}"/>
+      <inertia
+        ixx="${rgb_ixx}" ixy="${rgb_ixy}" ixz="${rgb_ixz}"
+        iyy="${rgb_iyy}" iyz="${rgb_iyz}"
+        izz="${rgb_izz}"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://drone_description/meshes_1/rgb_link.STL"/>
+      </geometry>
+      <material name="">
+        <color rgba="0.79216 0.81961 0.93333 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://drone_description/meshes_1/rgb_link.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="rgb_joint" type="fixed">
+    <origin xyz="-0.00115 -0.0019585 -0.006564" rpy="0 0 0"/>
+    <parent link="camera_link"/>
+    <child  link="rgb_link"/>
+    <axis xyz="0 0 0"/>
+  </joint>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       MONO RIGHT LINK   joint mono_right_joint (fixed), parent camera_link
+       ══════════════════════════════════════════════════════════════ -->
+  <link name="mono_right_link">
+    <inertial>
+      <origin xyz="${mono_right_cx} ${mono_right_cy} ${mono_right_cz}" rpy="0 0 0"/>
+      <mass value="${mono_right_mass}"/>
+      <inertia
+        ixx="${mono_right_ixx}" ixy="${mono_right_ixy}" ixz="${mono_right_ixz}"
+        iyy="${mono_right_iyy}" iyz="${mono_right_iyz}"
+        izz="${mono_right_izz}"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://drone_description/meshes_1/mono_right_link.STL"/>
+      </geometry>
+      <material name="">
+        <color rgba="0.79216 0.81961 0.93333 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://drone_description/meshes_1/mono_right_link.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="mono_right_joint" type="fixed">
+    <origin xyz="-0.00303 0.035542 -0.0065787" rpy="0 0 0"/>
+    <parent link="camera_link"/>
+    <child  link="mono_right_link"/>
+    <axis xyz="0 0 0"/>
+  </joint>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       MONO LEFT LINK   joint mono_left_joint (fixed), parent camera_link
+       ══════════════════════════════════════════════════════════════ -->
+  <link name="mono_left_link">
+    <inertial>
+      <origin xyz="${mono_left_cx} ${mono_left_cy} ${mono_left_cz}" rpy="0 0 0"/>
+      <mass value="${mono_left_mass}"/>
+      <inertia
+        ixx="${mono_left_ixx}" ixy="${mono_left_ixy}" ixz="${mono_left_ixz}"
+        iyy="${mono_left_iyy}" iyz="${mono_left_iyz}"
+        izz="${mono_left_izz}"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://drone_description/meshes_1/mono_left_link.STL"/>
+      </geometry>
+      <material name="">
+        <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://drone_description/meshes_1/mono_left_link.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="mono_left_joint" type="fixed">
+    <origin xyz="-0.00303 -0.039458 -0.006564" rpy="0 0 0"/>
+    <parent link="camera_link"/>
+    <child  link="mono_left_link"/>
+    <axis xyz="0 0 0"/>
+  </joint>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       ADDED — links/joints present in model.sdf but missing from the
+       URDF export. Values (pose, mass, inertia) taken verbatim from
+       model.sdf. All four are massless-ish sensor reference frames
+       (SDF gives them a nominal 0.001 kg / 1e-9 inertia rather than
+       true zero, so that convention is kept here).
+       ══════════════════════════════════════════════════════════════ -->
+
+  <!-- OAK-D IMU FRAME (BNO085)   joint oak_imu_joint (fixed), parent camera_link -->
+  <link name="oak_imu_frame">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.001"/>
+      <inertia ixx="1e-9" ixy="0" ixz="0" iyy="1e-9" iyz="0" izz="1e-9"/>
+    </inertial>
+  </link>
+
+  <joint name="oak_imu_joint" type="fixed">
+    <origin xyz="-0.008 -0.037945 -0.00079" rpy="0 0 0"/>
+    <parent link="camera_link"/>
+    <child  link="oak_imu_frame"/>
+    <axis xyz="0 0 0"/>
+  </joint>
+
+  <!-- OAK-D RGB OPTICAL FRAME (REP-103)   joint oak_rgb_camera_optical_joint (fixed), parent rgb_link -->
+  <link name="oak_rgb_camera_optical_frame">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.001"/>
+      <inertia ixx="1e-9" ixy="0" ixz="0" iyy="1e-9" iyz="0" izz="1e-9"/>
+    </inertial>
+  </link>
+
+  <joint name="oak_rgb_camera_optical_joint" type="fixed">
+    <origin xyz="0 0 0" rpy="-1.5707963 0 -1.5707963"/>
+    <parent link="rgb_link"/>
+    <child  link="oak_rgb_camera_optical_frame"/>
+    <axis xyz="0 0 0"/>
+  </joint>
+
+  <!-- OAK-D RIGHT MONO OPTICAL FRAME (REP-103)   joint oak_right_camera_optical_joint (fixed), parent mono_right_link -->
+  <link name="oak_right_camera_optical_frame">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.001"/>
+      <inertia ixx="1e-9" ixy="0" ixz="0" iyy="1e-9" iyz="0" izz="1e-9"/>
+    </inertial>
+  </link>
+
+  <joint name="oak_right_camera_optical_joint" type="fixed">
+    <origin xyz="0 0 0" rpy="-1.5707963 0 -1.5707963"/>
+    <parent link="mono_right_link"/>
+    <child  link="oak_right_camera_optical_frame"/>
+    <axis xyz="0 0 0"/>
+  </joint>
+
+  <!-- OAK-D LEFT MONO OPTICAL FRAME (REP-103)   joint oak_left_camera_optical_joint (fixed), parent mono_left_link -->
+  <link name="oak_left_camera_optical_frame">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.001"/>
+      <inertia ixx="1e-9" ixy="0" ixz="0" iyy="1e-9" iyz="0" izz="1e-9"/>
+    </inertial>
+  </link>
+
+  <joint name="oak_left_camera_optical_joint" type="fixed">
+    <origin xyz="0 0 0" rpy="-1.5707963 0 -1.5707963"/>
+    <parent link="mono_left_link"/>
+    <child  link="oak_left_camera_optical_frame"/>
+    <axis xyz="0 0 0"/>
+  </joint>
+
+</robot>

@@ -1,0 +1,32 @@
+<?xml version="1.0" ?>
+<sdf version="1.9">
+  <model name="probe_yellow_green">
+    <static>true</static>
+    <link name="link">
+      <!-- collision kept as a simple bounding cylinder (0-0.20m tall, 15mm radius)
+           for cheap physics/lidar interaction; the visual mesh carries the real shape -->
+      <collision name="collision">
+        <pose>0 0 0.1 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.015</radius>
+            <length>0.2</length>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name="visual">
+        <geometry>
+          <mesh>
+            <uri>model://probe_yellow_green/probe.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <ambient>0.62 0.78 0.12 1</ambient>
+          <diffuse>0.62 0.78 0.12 1</diffuse>
+          <specular>0.15 0.15 0.15 1</specular>
+          <emissive>0 0 0 1</emissive>
+        </material>
+      </visual>
+    </link>
+  </model>
+</sdf>

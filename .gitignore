@@ -1,0 +1,13 @@
+# ROS build directories
+build/
+install/
+log/
+config/
+
+# IDE configurations
+.vscode/
+src/.vscode/
+
+# Python cache files
+__pycache__/
+*.pyc
