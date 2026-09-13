@@ -1,4 +1,4 @@
-# HSM_Aquila — ERC 2026 Droning Sub-Task
+# HSM_Aquila — ERC 2026 Droning Sub-Task GPS-Denied
 
 ROS 2 workspace for **HSM Aries**'s autonomous quadrotor, built for the European Rover Challenge (ERC) Droning Sub-Task. The stack flies a search pattern over an unknown field, detects ground probes and an ArUco landing marker, then returns and lands precisely on the marker — in Gazebo simulation and on the real Jetson/Pixhawk hardware.
 
