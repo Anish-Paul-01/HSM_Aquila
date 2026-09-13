@@ -8,6 +8,11 @@ config/
 .vscode/
 src/.vscode/
 
+# Excluded ROS packages
+src/px4_msgs/
+src/open_vins/
+src/object_detection/
+
 # Python cache files
 __pycache__/
 *.pyc
