@@ -1,0 +1,100 @@
+#!/bin/sh
+# @name my_drone
+# @type Quadrotor x
+# @class Copter
+#
+# T-Motor MN4110 400KV + 15x5" props + 6S battery
+# Total mass ~3.05 kg
+
+. ${R}etc/init.d/rc.mc_defaults
+
+PX4_SIMULATOR=${PX4_SIMULATOR:=gz}
+PX4_GZ_WORLD=${PX4_GZ_WORLD:=default}
+PX4_SIM_MODEL=${PX4_SIM_MODEL:=my_drone}
+
+param set-default SIM_GZ_EN 1
+param set-default CA_AIRFRAME 0
+param set-default CA_ROTOR_COUNT 4
+
+param set-default PX4_GZ_STANDALONE 1
+
+# Motor layout matches x500 convention (tested and working)
+param set-default CA_ROTOR0_PX  0.13
+param set-default CA_ROTOR0_PY  0.22
+param set-default CA_ROTOR0_KM  0.05
+
+param set-default CA_ROTOR1_PX -0.13
+param set-default CA_ROTOR1_PY -0.20
+param set-default CA_ROTOR1_KM  0.05
+
+param set-default CA_ROTOR2_PX  0.13
+param set-default CA_ROTOR2_PY -0.22
+param set-default CA_ROTOR2_KM -0.05
+
+param set-default CA_ROTOR3_PX -0.13
+param set-default CA_ROTOR3_PY  0.20
+param set-default CA_ROTOR3_KM -0.05
+
+# Motor function mapping
+param set-default SIM_GZ_EC_FUNC1 101
+param set-default SIM_GZ_EC_FUNC2 102
+param set-default SIM_GZ_EC_FUNC3 103
+param set-default SIM_GZ_EC_FUNC4 104
+
+param set-default SIM_GZ_EC_MIN1 150
+param set-default SIM_GZ_EC_MIN2 150
+param set-default SIM_GZ_EC_MIN3 150
+param set-default SIM_GZ_EC_MIN4 150
+
+param set-default SIM_GZ_EC_MAX1 1000
+param set-default SIM_GZ_EC_MAX2 1000
+param set-default SIM_GZ_EC_MAX3 1000
+param set-default SIM_GZ_EC_MAX4 1000
+
+# Hover thrust
+param set-default MPC_THR_HOVER 0.55
+
+# Failsafe — disabled for SITL
+param set-default NAV_DLL_ACT 0
+param set-default NAV_RCL_ACT 0
+
+
+# EKF2 sensor config
+param set-default EKF2_MAG_TYPE 1
+param set-default SYS_HAS_MAG 1
+param set-default COM_ARM_MAG_ANG 45
+
+# GPS — disabled (was 3 = horizontal + vertical position fusion enabled)
+param set-default EKF2_GPS_CTRL 0
+
+# Baro — keep enabled as a passive backup height source (redundancy, cheap to leave on)
+param set-default EKF2_BARO_CTRL 1
+
+# Rangefinder — primary height source, this is why you added the 1D lidar
+param set-default EKF2_RNG_CTRL 1
+param set-default EKF2_HGT_REF 1
+
+# Vision (your VIO bridge) — fuse horizontal pos + vertical pos + velocity + yaw (bitmask 1+2+4+8=15)
+param set-default EKF2_EV_CTRL 15
+param set-default EKF2_EV_DELAY 10
+
+
+# PID tuning — reduced for 3kg heavy drone with powerful motors
+param set-default MC_ROLLRATE_P 0.05
+param set-default MC_PITCHRATE_P 0.05
+param set-default MC_YAWRATE_P 0.1
+param set-default MC_ROLLRATE_I 0.05
+param set-default MC_PITCHRATE_I 0.05
+param set-default MC_ROLLRATE_D 0.001 
+param set-default MC_PITCHRATE_D 0.001 
+
+# Altitude controller
+param set-default MPC_Z_VEL_P_ACC 2.0
+param set-default MPC_Z_VEL_I_ACC 0.5
+param set-default MPC_Z_VEL_D_ACC 0.0
+
+
+
+
+
+
