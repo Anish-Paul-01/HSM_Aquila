@@ -1,0 +1,27 @@
+/**:
+  ros__parameters:
+    pipeline_gen:
+      i_pipeline_type: STEREO
+    rgb:
+      i_disable_node: true
+    left:
+      i_resolution: '400P'
+      i_publish_topic: true
+    right:
+      i_resolution: '400P'
+      i_publish_topic: true
+    stereo:
+      i_publish_topic: true
+      i_output_disparity: false
+      i_output_depth: false
+      i_align_depth: false
+      i_left_rect_enable_feature_tracker: false
+      i_right_rect_enable_feature_tracker: false
+    imu:
+      i_acc_freq: 200
+      i_gyro_freq: 200
+      i_message_type: IMU              # <-- change from IMU_WITH_MAG_SPLIT
+      i_sync_method: COPY
+      i_batch_report_threshold: 1
+      i_max_batch_reports: 10
+      i_enable_rotation: false

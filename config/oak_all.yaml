@@ -1,0 +1,28 @@
+/**:
+  ros__parameters:
+    pipeline_gen:
+      i_pipeline_type: RGBD
+    rgb:
+      i_disable_node: false
+      i_publish_topic: true
+    left:
+      i_resolution: '400P'
+      i_publish_topic: false
+    right:
+      i_resolution: '400P'
+      i_publish_topic: false
+    stereo:
+      i_publish_topic: true
+      i_output_disparity: false
+      i_output_depth: false
+      i_align_depth: false
+      i_output_disparity: false
+      i_fps: 10.0          # add this — throttle at the source instead of over-sending
+    imu:
+      i_acc_freq: 200
+      i_gyro_freq: 200
+      i_message_type: IMU
+      i_sync_method: COPY
+      i_batch_report_threshold: 1
+      i_max_batch_reports: 10
+      i_enable_rotation: false
