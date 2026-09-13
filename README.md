@@ -7,12 +7,12 @@ ROS 2 workspace for **HSM Aries**'s autonomous quadrotor, built for the European
 ### 1. SITL Simulation (Gazebo)
 *Demonstration of the drone executing the search circle, locating the ArUco marker, and performing the continuous precision descent sequence in a simulated environment.*
 
-[![SITL Flight Demo](https://img.youtube.com/vi/6rYdZYjD0zA/0.jpg)](https://youtu.be/6rYdZYjD0zA)
+[Watch: SITL Flight Demo](https://youtu.be/6rYdZYjD0zA)
 
 ### 2. Real-World Hardware Flight (ERC)
 *Actual hardware flight footage demonstrating the visual servoing script running on the Jetson Orin companion computer and Luxonis OAK-D Pro camera.*
 
-[![Real World ERC Flight](https://img.youtube.com/vi/70YiU4rVjNg/0.jpg)](https://youtu.be/70YiU4rVjNg)
+[Watch: Real World ERC Flight](https://youtu.be/70YiU4rVjNg)
 
 ---
 
