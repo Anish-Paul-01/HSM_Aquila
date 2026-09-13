@@ -19,6 +19,7 @@ install(
 )
 
 install(PROGRAMS
+  scripts/circle_aruco_probes.py
   scripts/gz_joint_state_publisher.py
   scripts/joystick_bridge.py
   scripts/keyboard_bridge.py
