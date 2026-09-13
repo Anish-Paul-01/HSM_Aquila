@@ -7,12 +7,12 @@ ROS 2 workspace for **HSM Aries**'s autonomous quadrotor, built for the European
 ### 1. SITL Simulation (Gazebo)
 *Demonstration of the drone executing the search circle, locating the ArUco marker, and performing the continuous precision descent sequence in a simulated environment.*
 
-[Watch: SITL Flight Demo](https://youtu.be/6rYdZYjD0zA)
+[![SITL Flight Demo](https://img.youtube.com/vi/6rYdZYjD0zA/0.jpg)](https://youtu.be/6rYdZYjD0zA)
 
 ### 2. Real-World Hardware Flight (ERC)
 *Actual hardware flight footage demonstrating the visual servoing script running on the Jetson Orin companion computer and Luxonis OAK-D Pro camera.*
 
-[Watch: Real World ERC Flight](https://youtu.be/70YiU4rVjNg)
+[![Real World ERC Flight](https://img.youtube.com/vi/70YiU4rVjNg/0.jpg)](https://youtu.be/70YiU4rVjNg)
 
 ---
 
@@ -107,11 +107,20 @@ Clone it directly as `drone_ws` (don't nest it inside another `src/`, since it a
 ```bash
 cd ~
 git clone https://github.com/Anish-Paul-01/HSM_Aquila.git drone_ws
-cd drone_ws/src
+```
+
+### 5. Clone `px4_msgs` into the workspace
+
+The ROS 2 packages here depend on PX4's message definitions, which aren't vendored in this repo — clone them into `src/` alongside the existing packages:
+
+```bash
+cd ~/drone_ws/src
 git clone https://github.com/PX4/px4_msgs.git
 ```
 
-### 5. Install the custom PX4 airframe
+Make sure the branch/tag matches the PX4-Autopilot checkout from step 2 (`main` on both is the simplest pairing).
+
+### 6. Install the custom PX4 airframe
 
 ```bash
 cp ~/drone_ws/4900_gz_my_drone ~/PX4-Autopilot/ROMFS/px4fmu_common/init.d-posix/airframes/
@@ -119,7 +128,7 @@ cp ~/drone_ws/4900_gz_my_drone ~/PX4-Autopilot/ROMFS/px4fmu_common/init.d-posix/
 
 This registers autostart ID 4900 — the motor layout, EKF2 sensor config, and PID gains the simulation launch file starts PX4 with.
 
-### 6. Build PX4 SITL once
+### 7. Build PX4 SITL once
 
 ```bash
 cd ~/PX4-Autopilot
@@ -128,7 +137,7 @@ make px4_sitl_default
 
 You only need the `px4` binary this produces — the workspace's own launch file starts Gazebo and PX4 itself, so you don't need to launch any simulator from here. If a simulator window pops up anyway once the build finishes, just close it.
 
-### 7. Build the ROS 2 workspace
+### 8. Build the ROS 2 workspace
 
 ```bash
 cd ~/drone_ws
@@ -139,7 +148,7 @@ source ~/.bashrc
 
 ### About the Gazebo↔ROS bridge config
 
-No action needed here — `src/drone_bringup/config/gazebo_bridge_oak_px4.yaml` is included in the repo and gets picked up automatically by `colcon build` in step 7. It bridges `/clock`, the OAK-D RGB camera (`/oak/rgb/image_raw` + `camera_info`, used for ArUco detection), the stereo pair and IMU under `/oak/...` (for OpenVINS), `/tf`, and the downward rangefinder on `/drone/lidar_1d/range`.
+No action needed here — `src/drone_bringup/config/gazebo_bridge_oak_px4.yaml` is included in the repo and gets picked up automatically by `colcon build` in step 8. It bridges `/clock`, the OAK-D RGB camera (`/oak/rgb/image_raw` + `camera_info`, used for ArUco detection), the stereo pair and IMU under `/oak/...` (for OpenVINS), `/tf`, and the downward rangefinder on `/drone/lidar_1d/range`.
 
 ## Running it
 
