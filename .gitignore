@@ -16,3 +16,4 @@ src/object_detection/
 # Python cache files
 __pycache__/
 *.pyc
+.cache/
