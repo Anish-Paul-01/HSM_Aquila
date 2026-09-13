@@ -2,6 +2,20 @@
 
 ROS 2 workspace for **HSM Aries**'s autonomous quadrotor, built for the European Rover Challenge (ERC) Droning Sub-Task. The stack flies a search pattern over an unknown field, detects ground probes and an ArUco landing marker, then returns and lands precisely on the marker — in Gazebo simulation and on the real Jetson/Pixhawk hardware.
 
+## Media & Flight Demonstrations
+
+### 1. SITL Simulation (Gazebo)
+*Demonstration of the drone executing the search circle, locating the ArUco marker, and performing the continuous precision descent sequence in a simulated environment.*
+
+[Watch: SITL Flight Demo](https://youtu.be/6rYdZYjD0zA)
+
+### 2. Real-World Hardware Flight (ERC)
+*Actual hardware flight footage demonstrating the visual servoing script running on the Jetson Orin companion computer and Luxonis OAK-D Pro camera.*
+
+[Watch: Real World ERC Flight](https://youtu.be/70YiU4rVjNg)
+
+---
+
 ## What's in this repository
 
 This repo *is* a colcon workspace: it already contains the `src/` folder colcon expects at its root, alongside a PX4 airframe file used by the simulation.
@@ -38,6 +52,7 @@ Only relevant if you're deploying to the physical drone — the simulation path 
 - Micro XRCE-DDS Agent
 
 ROS packages:
+
 ```bash
 sudo apt install ros-humble-robot-state-publisher ros-humble-rviz2 \
   ros-humble-ros-gz-bridge ros-humble-ros-gz-sim ros-humble-xacro \
@@ -45,28 +60,35 @@ sudo apt install ros-humble-robot-state-publisher ros-humble-rviz2 \
 ```
 
 Python packages:
+
 ```bash
 pip install --break-system-packages opencv-python opencv-contrib-python numpy \
   ultralytics pillow readchar
 ```
-`ultralytics` (which pulls in PyTorch) is needed even for the **simulation** run, since the sim mission node runs a YOLO model for probe detection. `pillow` and `readchar` are only needed for the optional desktop GUI viewer and keyboard teleop, respectively.
+
+`ultralytics` (which pulls in PyTorch) is needed even for the simulation run, since the sim mission node runs a YOLO model for probe detection. `pillow` and `readchar` are only needed for the optional desktop GUI viewer and keyboard teleop, respectively.
 
 ## Step-by-step setup
 
 ### 1. Install ROS 2 Humble
+
 Follow the official guide: https://docs.ros.org/en/humble/Installation.html
 
 ### 2. Install PX4-Autopilot
+
 ```bash
 cd ~
 git clone https://github.com/PX4/PX4-Autopilot.git --recursive
 cd PX4-Autopilot
 bash ./Tools/setup/ubuntu.sh
 ```
+
 This also installs Gazebo Harmonic. Reboot, or at least log out and back in, so the user-group changes from the setup script take effect.
 
 ### 3. Install the Micro XRCE-DDS Agent
+
 This bridges PX4's internal uORB topics to ROS 2.
+
 ```bash
 cd ~
 git clone https://github.com/eProsima/Micro-XRCE-DDS-Agent.git
@@ -79,7 +101,9 @@ sudo ldconfig /usr/local/lib/
 ```
 
 ### 4. Clone this repository as your workspace
+
 Clone it directly as `drone_ws` (don't nest it inside another `src/`, since it already has its own):
+
 ```bash
 cd ~
 git clone https://github.com/Anish-Paul-01/HSM_Aquila.git drone_ws
@@ -88,19 +112,24 @@ git clone https://github.com/PX4/px4_msgs.git
 ```
 
 ### 5. Install the custom PX4 airframe
+
 ```bash
 cp ~/drone_ws/4900_gz_my_drone ~/PX4-Autopilot/ROMFS/px4fmu_common/init.d-posix/airframes/
 ```
-This registers autostart ID `4900` — the motor layout, EKF2 sensor config, and PID gains the simulation launch file starts PX4 with.
+
+This registers autostart ID 4900 — the motor layout, EKF2 sensor config, and PID gains the simulation launch file starts PX4 with.
 
 ### 6. Build PX4 SITL once
+
 ```bash
 cd ~/PX4-Autopilot
 make px4_sitl_default
 ```
+
 You only need the `px4` binary this produces — the workspace's own launch file starts Gazebo and PX4 itself, so you don't need to launch any simulator from here. If a simulator window pops up anyway once the build finishes, just close it.
 
 ### 7. Build the ROS 2 workspace
+
 ```bash
 cd ~/drone_ws
 colcon build --symlink-install
@@ -109,30 +138,40 @@ source ~/.bashrc
 ```
 
 ### About the Gazebo↔ROS bridge config
+
 No action needed here — `src/drone_bringup/config/gazebo_bridge_oak_px4.yaml` is included in the repo and gets picked up automatically by `colcon build` in step 7. It bridges `/clock`, the OAK-D RGB camera (`/oak/rgb/image_raw` + `camera_info`, used for ArUco detection), the stereo pair and IMU under `/oak/...` (for OpenVINS), `/tf`, and the downward rangefinder on `/drone/lidar_1d/range`.
 
 ## Running it
 
 ### Simulation
+
 One command brings up everything — Gazebo, PX4 SITL, the XRCE-DDS agent, the ROS↔Gazebo bridges, RViz, and the mission node, staged with timers so each piece comes up in order:
+
 ```bash
 ros2 launch drone_bringup drone_gazebo_standalone.launch.py
 ```
+
 Gazebo opens with the `drone_cage` world, the quadrotor spawns a few seconds in, and roughly a minute later — once PX4, the bridges, and TF are all up — the probe-scan-and-land node takes over.
 
 ### Real hardware
+
 On the companion computer, wired to the Pixhawk 6C over `/dev/ttyCH341USB0`:
+
 ```bash
 source ~/drone_ws/install/setup.bash
 ros2 launch drone_bringup final_launch.py
 ```
+
 This starts the XRCE-DDS agent over serial at 921600 baud, brings up the OAK-D driver, and after a 25 s settling delay starts the mission script. Before this will work you also need:
+
 - the `depthai_ros_driver_v3` ROS 2 package built in your workspace (a DepthAI-v3-API camera driver — not included in this repo)
 - something publishing ground-probe counts to `/erc/probe_count` (`std_msgs/Int32`) — in this project, a separate MATLAB-based detector
 - the `oak_params_file` launch argument pointed at your actual camera-params YAML — it currently defaults to `/home/sar/drone_ws/config/oak_all.yaml`, e.g. `ros2 launch drone_bringup final_launch.py oak_params_file:=/your/path/oak_all.yaml`
 
 ### Manual teleop (optional)
+
 A few standalone nodes let you fly the SITL drone by hand, independent of the autonomous mission — useful for sanity-checking the offboard link, TF, and camera feed first:
+
 ```bash
 ros2 run drone_bringup keyboard_bridge.py     # WASD + QE yaw, arm/land/offboard from the keyboard
 ros2 run drone_bringup joystick_bridge.py     # generic joystick via joy_node
@@ -147,10 +186,7 @@ Each simulation run writes confirmed probe detections to `probes_location.csv` (
 
 This is an active competition codebase, not a polished release — two things still need attention on a fresh clone:
 
-- **Hard-coded YOLO weights path.** `drone_vision/aruco_autonomous_land.py` loads its model from `/home/anish1234/drone_ws/src/drone_vision/detection_model/best.pt`. If your username or workspace path differs, edit `self.yolo_model_path` in that file — the weights themselves are already committed at `src/drone_vision/detection_model/best.pt`.
-- **`xacro` isn't declared as a package dependency**, even though the Gazebo launch file imports it — installing `ros-humble-xacro` manually (covered above) works around this rather than relying on `rosdep install`.
-- No LICENSE file is currently included.
+1. **Hard-coded YOLO weights path.** `drone_vision/aruco_autonomous_land.py` loads its model from `/home/anish1234/drone_ws/src/drone_vision/detection_model/best.pt`. If your username or workspace path differs, edit `self.yolo_model_path` in that file — the weights themselves are already committed at `src/drone_vision/detection_model/best.pt`.
+2. **`xacro` isn't declared as a package dependency**, even though the Gazebo launch file imports it — installing `ros-humble-xacro` manually (covered above) works around this rather than relying on `rosdep install`.
 
-## Team
-
-Developed by Anish Paul for **HSM Aries**, the robotics team at Hochschule Schmalkalden, for the ERC Droning Sub-Task.
+No LICENSE file is currently included.
